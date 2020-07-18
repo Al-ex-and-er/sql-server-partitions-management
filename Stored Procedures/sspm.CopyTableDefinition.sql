@@ -11,7 +11,7 @@ Procedure is long and ugly, I'd love to see this task solved as part of SQL Serv
     1   - omit all non-clustered indexes
     2   - omit all columnstore clustered indexes
     255 - omit all indexes
-  @debug
+  @Debug
     1 - don't do any actions, print-only
     0 - do all actions, don't print
 
@@ -31,7 +31,7 @@ ALTER PROCEDURE sspm.CopyTableDefinition
   @TargetPSName sysname = null,
   @SkipIndexes tinyint = 0,
   @DropTargetIfExists bit = 0,
-  @debug bit = 0
+  @Debug bit = 0
 as
 set nocount on
 set ansi_padding on
@@ -49,14 +49,14 @@ begin
 end
 
 declare
-  @dbName nvarchar(128) = DB_NAME(),
+  @dbName nvarchar(128) = db_name(),
   @tmpObject sysname = @SourceTable,
   @tmpDB nvarchar(128), @tmpSchema sysname, @tmpTable sysname, @tmpSrv sysname
 
 select
   @tmpTable  = parsename(@tmpObject, 1),
   @tmpSchema = isnull(parsename(@tmpObject, 2), N'dbo'),
-  @tmpDB     = isnull(parsename(@tmpObject, 3), db_name()),
+  @tmpDB     = isnull(parsename(@tmpObject, 3), @dbName),
   @tmpSrv    = parsename(@tmpObject, 4)
 
 if @tmpSrv is not null or @tmpDB <> @dbName
@@ -71,7 +71,7 @@ set @tmpObject = @TargetTable
 select
   @tmpTable  = parsename(@tmpObject, 1),
   @tmpSchema = isnull(parsename(@tmpObject, 2), N'dbo'),
-  @tmpDB     = isnull(parsename(@tmpObject, 3), db_name()),
+  @tmpDB     = isnull(parsename(@tmpObject, 3), @dbName),
   @tmpSrv    = parsename(@tmpObject, 4)
 
 if @tmpSrv is not null or @tmpDB <> @dbName
@@ -82,7 +82,7 @@ end
 
 set @TargetTable = quotename(@tmpSchema) + '.' + quotename(@tmpTable)
 
-if @debug = 1
+if @Debug = 1
   print 'source table: ' + @SourceTable + ' target table: ' + @TargetTable
 
 if @UsePS = 0 and @TargetPSName is not null
@@ -127,8 +127,8 @@ declare
 SELECT
   @Compression = p.data_compression_desc,
   @PartColumn = quotename(col.PartColumn)
-FROM sys.indexes i with (nolock)
-  join sys.partitions p with (nolock)
+FROM sys.indexes i with(nolock)
+  join sys.partitions p with(nolock)
     on p.[object_id] = i.[object_id]
       and p.index_id = i.index_id
   outer apply
@@ -148,27 +148,27 @@ WHERE
   and p.partition_number = 1
   and i.[object_id] = @ObjectId
 
-if @debug = 1
+if @Debug = 1
   print 'data compression: ' + isnull(@Compression, 'NONE') + ' partitioning column: ' + isnull(@PartColumn, '<none>')
 
 SELECT
   @FileGroupName = quotename(fg.name),
   @SourcePSName = quotename(ps.name)
-FROM sys.indexes i with (nolock)
-  inner join sys.partitions p with (nolock)
+FROM sys.indexes i with(nolock)
+  inner join sys.partitions p with(nolock)
     on i.[object_id] = p.[object_id]
       and i.index_id = p.index_id
-  left join sys.partition_schemes ps with (nolock)
+  left join sys.partition_schemes ps with(nolock)
     on i.data_space_id = ps.data_space_id
-  left join sys.destination_data_spaces dds with (nolock)
+  left join sys.destination_data_spaces dds with(nolock)
     on ps.data_space_id = dds.partition_scheme_id
       and p.partition_number = dds.destination_id
-  inner join sys.filegroups fg with (nolock)
+  inner join sys.filegroups fg with(nolock)
     on coalesce(dds.data_space_id, i.data_space_id) = fg.data_space_id
  WHERE
   i.[object_id] = @ObjectId
 
-if @debug = 1
+if @Debug = 1
   print 'source file group: ' + isnull(@FileGroupName, '-') + ' source partitioning schema: ' + isnull(@SourcePSName, '-')
 
 if @UsePS = 1 and @SourcePSName is null and @TargetPSName is null
@@ -182,7 +182,7 @@ declare @PSName sysname = @SourcePSName
 if @UsePS = 1 and @TargetPSName is not null
   set @PSName = @TargetPSName
 
-if @debug = 1
+if @Debug = 1
   print 'target partitioning schema: ' + @PSName
 
 declare @cmd nvarchar(max)
@@ -194,11 +194,11 @@ begin
   begin
     set @cmd = N'if (object_id(''' + @TargetTable + ''') is not null) DROP TABLE ' + @TargetTable
     INSERT INTO @ddl(query) VALUES (@cmd)
-    if @debug = 1 print @cmd
+    if @Debug = 1 print @cmd
   end
   else
   begin
-    if @debug = 0
+    if @Debug = 0
     begin
       raiserror('@TargetTable exists, please use @DropTargetIfExists = 1 to drop it', 16, 1)
       return
@@ -287,7 +287,7 @@ set @cmd = @createTableHeader + @createTableColumns + @createTableFooter
 
 INSERT INTO @ddl(query) VALUES (@cmd)
 
-if @debug = 1 print @cmd
+if @Debug = 1 print @cmd
 
 if @SkipAllIndexes = 0
 begin --Build indexes
@@ -321,17 +321,17 @@ begin --Build indexes
       quotename(ps.name),
       st.is_incremental
     FROM sys.indexes i
-      join sys.partitions p with (nolock)
+      join sys.partitions p with(nolock)
         on p.[object_id] = i.[object_id]
         and p.index_id = i.index_id
-      left join sys.partition_schemes ps with (nolock)
+      left join sys.partition_schemes ps with(nolock)
         on i.data_space_id = ps.data_space_id
-      left join sys.destination_data_spaces dds with (nolock)
+      left join sys.destination_data_spaces dds with(nolock)
         on ps.data_space_id = dds.partition_scheme_id
         and p.partition_number = dds.destination_id
-      left join sys.filegroups fg with (nolock)
+      left join sys.filegroups fg with(nolock)
         on coalesce(dds.data_space_id, i.data_space_id) = fg.data_space_id
-      join sys.stats st with (nolock)
+      join sys.stats st with(nolock)
         on st.[object_id] = i.[object_id] AND st.name = i.name
     WHERE i.[object_id] = @ObjectId
       and p.partition_number = 1
@@ -344,7 +344,7 @@ begin --Build indexes
   while @@fetch_status = 0
   begin
 
-    --if @debug = 1
+    --if @Debug = 1
     --  print
     --      '@IndexId = ' + isnull(cast(@IndexId as varchar(16)), 'NULL') + char(10)
     --    + '@IndexName = '+ isnull(@IndexName, 'NULL') + char(10)
@@ -365,34 +365,29 @@ begin --Build indexes
       if @UsePS = 0 --move table to target file group
       begin
         set @cmd = N'ALTER TABLE ' + @TargetTable + N' ADD CONSTRAINT UQ_' + replace(@TargetTable, N'.', N'_') +  N' UNIQUE CLUSTERED(' + @PartColumn + N')' + @PhysicalLocation
-        if @debug = 1 print @cmd
+        if @Debug = 1 print @cmd
         exec (@cmd)
-        if @@error > 0 goto error_handler
 
         set @cmd = N'ALTER TABLE ' + @TargetTable + N' DROP CONSTRAINT UQ_' + replace(@TargetTable, N'.', N'_')
-        if @debug = 1 print @cmd
+        if @Debug = 1 print @cmd
         exec (@cmd)
-        if @@error > 0 goto error_handler
       end
       else if @UsePS = 1
       begin --it is only way to put heap on PS
         set @cmd = N'ALTER TABLE ' + @TargetTable + N' ADD CONSTRAINT UQ_' + replace(@TargetTable, N'.', N'_') +  N' UNIQUE CLUSTERED(' + @PartColumn + N')'
-        if @debug = 1 print @cmd
+        if @Debug = 1 print @cmd
         exec (@cmd)
-        if @@error > 0 goto error_handler
 
         set @cmd = N'ALTER TABLE ' + @TargetTable + N' DROP CONSTRAINT UQ_' + replace(@TargetTable, N'.', N'_') +  N' WITH(MOVE TO ' + @PSName + N'(' + @PartColumn + N'))'
-        if @debug = 1 print @cmd
+        if @Debug = 1 print @cmd
         exec (@cmd)
-        if @@error > 0 goto error_handler
       end
 
       if @DataCompressionDesc != 'NONE'
       begin
         set @cmd = N'ALTER TABLE ' + @TargetTable + N' REBUILD WITH (DATA_COMPRESSION = ' + @DataCompressionDesc + N')'
-        if @debug = 1 print @cmd
+        if @Debug = 1 print @cmd
         exec (@cmd)
-        if @@error > 0 goto error_handler
       end
 
     end --@IndexId = 0 --heap
@@ -405,7 +400,7 @@ begin --Build indexes
 
       INSERT INTO @ddl(query) VALUES (@cmd)
 
-      if @debug = 1 print @cmd
+      if @Debug = 1 print @cmd
     end
     else if @IndexType = 6 --@SkipNCCIndexes = 0
     begin
@@ -443,7 +438,7 @@ begin --Build indexes
 
         INSERT INTO @ddl(query) VALUES (@cmd)
 
-        if @debug = 1 print @cmd
+        if @Debug = 1 print @cmd
 
     end
     else --'normal' indexes
@@ -510,7 +505,7 @@ begin --Build indexes
 
         INSERT INTO @ddl(query) VALUES (@cmd)
 
-        if @debug = 1 print @cmd
+        if @Debug = 1 print @cmd
       end
       else if @SkipNCIndexes = 0 or (@SkipNCIndexes = 1 and @IndexType = 1) -- 1 = Clustered
       begin
@@ -522,7 +517,7 @@ begin --Build indexes
 
         INSERT INTO @ddl(query) VALUES (@cmd)
 
-        if @debug = 1 print @cmd
+        if @Debug = 1 print @cmd
       end -- /@SkipNCIndexes check
     end -- /'normal' indexes
 
@@ -535,7 +530,7 @@ begin --Build indexes
 
 end --@SkipAllIndexes = 0
 
-if @debug = 0 --run DDL
+if @Debug = 0 --run DDL
 begin try
   declare
     @id int = 1,
@@ -567,9 +562,8 @@ end catch
 if @LoadDay > 0
 begin
   set @cmd = N'ALTER TABLE ' + @TargetTable + N' ADD Constraint CK_' + @TargetTable + N'_' + @PartColumn + N' CHECK (' +  @PartColumn + N' = ' + Convert(char(8), @LoadDay) + N')'
-  if @debug = 1 print @cmd
+  if @Debug = 1 print @cmd
   exec (@cmd)
-  if @@error > 0 goto error_handler
 end
 */
 

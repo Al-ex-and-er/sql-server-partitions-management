@@ -1,5 +1,6 @@
-ALTER PROCEDURE testSSPM.TestAllTables
+CREATE PROCEDURE testSSPM.Test_CopyTable_AllTables
 as
+set nocount on
 
 CREATE TABLE #tables 
 (

@@ -1,0 +1,3 @@
+copytabledefinition - check when source is not partitioned and PS is provided, no way to find partitioning column
+
+Switch - how Debug works (print only)

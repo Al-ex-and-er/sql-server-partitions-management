@@ -1,5 +1,7 @@
-CREATE PROCEDURE testSSPM.TestTable1
+CREATE PROCEDURE testSSPM.Test_CopyTable_Table1
 as
+set nocount on
+
 exec sspm.CopyTableDefinition
   @SourceTable = 'Warehouse.StockItemTransactions',
   @TargetTable = 'tmp_table',
