@@ -1,6 +1,6 @@
 /*
   This SP can be used to
-    1. switch range of partitions from @SourceTable to @TargetTable (appropriate partitions in @TargetTable will be emptied)
+    1. switch the range of partitions from @SourceTable to @TargetTable (appropriate partitions in @TargetTable will be emptied)
     2. remove data from the range of partitions in @SourceTable
 
     @SkipCount - counting amount of rows it the most time-consuming operation. Set @SkipCount = 1 to skip it. SP won't return accurate
@@ -37,7 +37,7 @@
     @Debug = 2
 */
 
-ALTER PROCEDURE sspm.Switch
+CREATE OR ALTER PROCEDURE sspm.Switch
 (
   @SourceTable sysname,
   @TargetTable sysname,
@@ -55,7 +55,7 @@ select @RowsDeleted = 0, @RowsInserted = 0
 
 if @SourceTable is null
 begin
-  raiserror('Source table is NULL!', 16, 1)
+  raiserror('The source table is not specified!', 16, 1)
   return
 end
 
@@ -115,13 +115,13 @@ declare @SrcObjectID int = object_id(@SourceTable, 'U')
 
 if @SrcObjectID is null
 begin
-  raiserror('Source table doesn''t exists, @SourceTable = %s', 16, 1, @SourceTable)
+  raiserror('Source table doesn''t exist, @SourceTable = %s', 16, 1, @SourceTable)
   return
 end
 
 if @TargetTable is not null and object_id(@TargetTable, 'U') is null
 begin
-  raiserror('Target table doesn''t exists, @TargetTable = %s', 16, 1, @TargetTable)
+  raiserror('Target table doesn''t exist, @TargetTable = %s', 16, 1, @TargetTable)
   return
 end
 
@@ -169,7 +169,7 @@ WHERE i.object_id = @SrcObjectID
 
 if @PF is null
 begin
-  raiserror('Source table is not partitioned!', 16, 1)
+  raiserror('The source table is not partitioned!', 16, 1)
   return
 end
 
@@ -244,7 +244,7 @@ end
 
 if @MinPartNum is null or @MaxPartNum is null
 begin
-  raiserror('Range of values should define at least one whole partition to switch!', 16, 1)
+  raiserror('The range of values should define at least one whole partition to switch!', 0, 0)
   return
 end
 
@@ -272,8 +272,8 @@ declare
 
 begin
   --@RowsDeleted
-  --count rows in destination table, if we are moving partitions between sorce and destination
-  --count rows in source table if we are moving partitions between source and none
+  --count rows in the destination table, if we are moving partitions between sorce and destination
+  --count rows in the source table if we are moving partitions between source and none
   set @Cmd =
     case
       when @CleanupOnly = 0 and @SkipCount = 0 then N'SELECT @Rows = count_big(*) FROM ' + @TargetTable + N' with(nolock) WHERE $partition.' + @PFDecl + N' BETWEEN @min and @max'
@@ -298,11 +298,11 @@ begin
   end
 end
 
-if @CleanupOnly = 1 and @RowsDeleted = 0 --Nothing to delete, source table is empty
+if @CleanupOnly = 1 and @RowsDeleted = 0 --Nothing to delete, the the source table is empty
 begin
   if @Debug > 0
   begin
-    raiserror('Nothing to delete, source table is empty', 0, 0) with nowait
+    raiserror('Nothing to delete, the source table is empty', 0, 0) with nowait
   end
 
   return
@@ -339,13 +339,13 @@ begin
 
   if @CleanupOnly = 0
   begin
-    if @Debug > 0 print N'Target table has data, let''s check destination temp table, @TgtTempTable = ' + @TgtTempTable
+    if @Debug > 0 print N'The target table has data, let''s check the destination temp table, @TgtTempTable = ' + @TgtTempTable
     set @Table = @TargetTable
     set @TempTable = @TgtTempTable
   end
   else
   begin
-    if @Debug > 0 print N'Source table has data, let''s check dest table, @SrcTempTable = ' + @SrcTempTable
+    if @Debug > 0 print N'The source table has data, let''s check the destination table, @SrcTempTable = ' + @SrcTempTable
     set @Table = @SourceTable
     set @TempTable = @SrcTempTable
   end
@@ -433,7 +433,7 @@ begin
     if @HasNonEmptySrc = 0
     begin
       set @HasNonEmptySrc = 1
-      if @Debug > 0 print 'Found not-empty partition in source table'
+      if @Debug > 0 print 'Found not-empty partition in the source table'
     end
 
     if @CleanupOnly = 0

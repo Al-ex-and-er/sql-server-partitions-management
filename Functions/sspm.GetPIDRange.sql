@@ -4,7 +4,7 @@ It is two functions (sspm.GetStartPID, sspm.GetStopPID) combined in one.
 Function returns only valid ranges so pid1 <= pid2 or return nothing.
 if @value1 >= @value2, result will be NULL
 */
-ALTER FUNCTION sspm.GetPIDRange (@PFName sysname, @value1 sql_variant, @value2 sql_variant)
+CREATE OR ALTER FUNCTION sspm.GetPIDRange (@PFName sysname, @value1 sql_variant, @value2 sql_variant)
 RETURNS table
 AS
 RETURN

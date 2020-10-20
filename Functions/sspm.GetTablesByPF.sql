@@ -1,4 +1,4 @@
-CREATE FUNCTION sspm.GetTablesByPF (@PFName sysname)
+CREATE OR ALTER FUNCTION sspm.GetTablesByPF (@PFName sysname)
 RETURNS table
 AS
 RETURN

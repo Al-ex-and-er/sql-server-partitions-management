@@ -54,7 +54,7 @@ exec sspm.Defragment
 
 */
 
-ALTER PROCEDURE sspm.Defragment
+CREATE OR ALTER PROCEDURE sspm.Defragment
 (
   @TableName sysname,
   @From sql_variant = NULL,
