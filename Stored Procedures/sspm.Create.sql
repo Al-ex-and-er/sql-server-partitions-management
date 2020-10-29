@@ -7,7 +7,9 @@
 
   Partition function can be based on any integer and date time type. 
   
-  @PFType can be:
+  @ArgType can be:
+
+    for dates and date keys:
 
     Hourly
     Daily               
@@ -16,6 +18,10 @@
     Quarterly
     HalfYearly
     Yearly
+
+    for numbers
+
+    Number
 
   @DataType can be:
 
@@ -54,15 +60,23 @@
 
   ('L1',  1, 10, 'FG1'),
   ('L1', 10, 20, 'FG2')
-
+  
+  exec sspm.CreatePF
+    @PFName   = 'pf_int',
+    @ArgType  = 'number',
+    @Start    = 0,
+    @Stop     = 100,
+    @Step     = 10,
+    @DataType = 'int',
+    @PrintOnly= 1
 */
 CREATE PROCEDURE sspm.CreatePF
 (
   @PFName    sysname,
-  @PFType    sysname,
+  @ArgType   varchar(12),
   @Start     sql_variant,
   @Stop      sql_variant,
-  @Step      varchar(20),
+  @Step      sql_variant,
   @PFRange   varchar(5) = 'RIGHT', --right or left
   @DataType  varchar(50),
   @PSName    sysname = null,
@@ -90,9 +104,9 @@ begin
   return
 end
 
-if @PFType not in ('Hourly', 'Daily', 'Weekly', 'Monthly', 'Quarterly', 'HalfYearly', 'Yearly')
+if @ArgType not in ('Hourly', 'Daily', 'Weekly', 'Monthly', 'Quarterly', 'HalfYearly', 'Yearly', 'Number')
 begin
-  raiserror('@PFType is wrong', 16, 0)
+  raiserror('@ArgType is wrong', 16, 0)
   return
 end
 
@@ -137,43 +151,60 @@ end
 /*
 find out @BaseType, time-based or int-based
 */
-declare @BaseType varchar(10) = null
+declare @BaseType varchar(20) = null
 
-if @DataType !='timestamp' and (@DataType like '%time%' or @DataType = 'date')
+if @ArgType != 'Number' 
 begin
-  set @BaseType = 'time-based'
+  if @DataType !='timestamp' and (@DataType like '%time%' or @DataType = 'date')
+  begin
+    set @BaseType = 'time-based date'
+  end
+
+  if @DataType in ('bigint', 'int', 'smallint', 'tinyint')
+  begin
+    set @BaseType = 'int-based date'
+  end
 end
-
-if @DataType in ('bigint', 'int', 'smallint', 'tinyint')
+else
 begin
-  set @BaseType = 'int-based'
+  if @DataType = 'bit'
+  begin
+    raiserror('@DataType can''t be a bit!', 16, 0)
+    return
+  end
+  set @BaseType = 'number'
+  /*
+    numeric, decimal,  
+    tinyint, smallint, int,
+    smallmoney, money
+  */
 end
 
 if @BaseType is null
 begin
-  raiserror('@DataType is not recognized, type can be date/time or any integer type', 16, 0)
+  raiserror('@DataType is not recognized, type can be date/time or any numeric type', 16, 0)
   return
 end
 
 --check @Step
-if @BaseType = 'time-based' and @Step not in ('Hour', 'Day', 'Week', 'Month', 'Quarter', 'HalfYear', 'Year')
+if @BaseType = 'time-based date' and @Step not in ('Hour', 'Day', 'Week', 'Month', 'Quarter', 'HalfYear', 'Year')
 begin
   print 'For time-based types these steps are supported: Hour, Day, Week, Month, Quarter, HalfYear and Year'
   raiserror('@Step is not recognized', 16, 0)
   return
 end 
 
-if @BaseType = 'int-based' and @Step not in ('Day', 'Week', 'Month', 'Quarter', 'HalfYear', 'Year')
+if @BaseType = 'int-based date' and @Step not in ('Day', 'Week', 'Month', 'Quarter', 'HalfYear', 'Year')
 begin
-  print 'For int-based types we support these steps: Day, Week, Month, Quarter, HalfYear, Year'
+  print 'For int-based date types we support these steps: Day, Week, Month, Quarter, HalfYear, Year'
   raiserror('@Step is not recognized', 16, 0)
   return
 end
 
-if @BaseType = 'int-based' and isnull(@PFType, '') = 'Hourly'
+if @BaseType = 'int-based date' and isnull(@ArgType, '') = 'Hourly'
 begin
-  print 'Int-based types can''t be Hourly'
-  raiserror('@PFType is not recognized', 16, 0)
+  print 'Int-based date types can''t be Hourly'
+  raiserror('@ArgType is not recognized', 16, 0)
   return
 end
 
@@ -219,8 +250,8 @@ if object_id('tempdb..#points') is not null
 CREATE TABLE #points
 ( 
   id int not null identity(1,1),
-  pointDT datetime2(7) not null,
-  pointStr varchar(20) not null,
+  point sql_variant not null,
+  pointStr varchar(30) not null,
   FGName sysname null
 )
 
@@ -228,7 +259,7 @@ declare
   @list varchar(max) = '',
   @direction int = case @PFRange when 'RIGHT' then -1 else 1 end
 
-if @BaseType = 'time-based' --set @list
+if @BaseType = 'time-based date' --set @list
 begin
   declare 
     @curDT datetime2(7) = @vStart,
