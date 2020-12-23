@@ -1,0 +1,63 @@
+All data types are valid for use as partitioning columns, except text, ntext, image, xml, timestamp, varchar(max), nvarchar(max), varbinary(max), alias data types, or CLR user-defined data types.
+
+
+All types
+
+Exact numerics
+
+bit
+
+tinyint
+smallint
+int
+bigint
+
+smallmoney
+money
+
+decimal
+numeric
+
+Approximate numerics
+
+float
+real
+
+Date and time
+
+date
+datetimeoffset
+datetime2
+smalldatetime
+datetime
+time
+
+Character strings
+
+char
+varchar
+text
+
+Unicode character strings
+
+nchar
+nvarchar
+ntext
+
+Binary strings
+
+binary
+varbinary
+image
+
+Other data types
+
+cursor
+rowversion
+hierarchyid
+uniqueidentifier
+sql_variant
+xml
+Spatial Geometry Types
+Spatial Geography Types
+table

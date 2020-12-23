@@ -3,21 +3,22 @@
 
   Partition function starts at @Start and then makes increments (@Step) till it reaches @Stop. Range is inclusive [@Start, @Stop]
 
-  All partitions can be placed in the same file group (@AllToFilegroup) or use a layout from configuration table (@PSLayout)
+  All partitions can be placed in the same file group (@PSAllTo) or use a layout from configuration table (@PSLayout)
 
   Partition function can be based on any integer and date time type. 
   
   @ArgType can be:
 
-    for dates and date keys:
+    for date keys:
 
-    Hourly
-    Daily               
-    Weekly
-    Monthly
-    Quarterly
-    HalfYearly
-    Yearly
+    DateKey               
+    WeekKey
+    MonthKey
+    YearKey
+
+    for dates
+
+    'Time-based'
 
     for numbers
 
@@ -35,14 +36,13 @@
     datetimeoffset[(n)]
 
   @Step can be
-
-    Hour
-    Day
-    Week
-    Month
-    Quarter
-    HalfYear
-    Year
+    1 - for numbers, it is just a single number, increment
+    2 - for time-based, it is an interval, defined as a string (PostreSQL-inspired)
+      quantity unit [quantity unit...]
+      where 
+        quantity is an integer (can be negative)
+        and unit is a string 'second', 'minute', 'hour', 'day', 'week', 'month', 'year'
+      examples '1 hour', '30 minutes'
 
   @PFRange can be RIGHT or LEFT.
 
@@ -70,10 +70,11 @@
     @DataType = 'int',
     @PrintOnly= 1
 */
-CREATE PROCEDURE sspm.CreatePF
+
+CREATE or alter PROCEDURE sspm.CreatePF
 (
   @PFName    sysname,
-  @ArgType   varchar(12),
+--  @ArgType   varchar(12),
   @Start     sql_variant,
   @Stop      sql_variant,
   @Step      sql_variant,
@@ -89,6 +90,7 @@ set nocount on
 --
 -- Check parameters
 --
+set @PFName = nullif(trim(@PFName), '')
 if @PFName is null
 begin
   raiserror('@PFName must be defined', 16, 0)
@@ -104,11 +106,11 @@ begin
   return
 end
 
-if @ArgType not in ('Hourly', 'Daily', 'Weekly', 'Monthly', 'Quarterly', 'HalfYearly', 'Yearly', 'Number')
-begin
-  raiserror('@ArgType is wrong', 16, 0)
-  return
-end
+--if @ArgType not in ('DateKey', 'WeeklKey', 'MonthKey', 'YearKey', 'Time-based', 'Number')
+--begin
+--  raiserror('@ArgType is wrong', 16, 0)
+--  return
+--end
 
 set @PFRange = upper(ltrim(rtrim(@PFRange)))
 
@@ -119,8 +121,7 @@ begin
   return
 end
 
-set @PFName = nullif(ltrim(rtrim(@PFName)), '')
-set @PSName = nullif(ltrim(rtrim(@PSName)), '')
+set @PSName = nullif(trim(@PSName), '')
 
 if @PSName is not null
 begin
@@ -153,89 +154,167 @@ find out @BaseType, time-based or int-based
 */
 declare @BaseType varchar(20) = null
 
-if @ArgType != 'Number' 
+if @DataType in ('date', 'datetime', 'smalldatetime')
+  or (@DataType like 'time%' and @DataType <> 'timestamp')
+  or @DataType like 'datetime2%'
+  or @DataType like 'datetimeoffset%'
 begin
-  if @DataType !='timestamp' and (@DataType like '%time%' or @DataType = 'date')
-  begin
-    set @BaseType = 'time-based date'
-  end
-
-  if @DataType in ('bigint', 'int', 'smallint', 'tinyint')
-  begin
-    set @BaseType = 'int-based date'
-  end
+  set @BaseType = 'time-based'
 end
-else
+else if @DataType in 
+  (
+    'bigint', 'int', 'smallint', 'tinyint', 
+    'smallmoney', 'money',
+    'real'
+--    'bit'
+  )
+  or @DataType like 'numeric%'
+  or @DataType like 'decimal%'
+  or @DataType like 'float%'
 begin
-  if @DataType = 'bit'
-  begin
-    raiserror('@DataType can''t be a bit!', 16, 0)
-    return
-  end
-  set @BaseType = 'number'
-  /*
-    numeric, decimal,  
-    tinyint, smallint, int,
-    smallmoney, money
-  */
+  set @BaseType = 'Numeric'
 end
 
 if @BaseType is null
 begin
-  raiserror('@DataType is not recognized, type can be date/time or any numeric type', 16, 0)
+  raiserror('@DataType is not recognized, type can be date/time or any numeric type (but not bit)', 16, 0)
   return
 end
 
---check @Step
-if @BaseType = 'time-based date' and @Step not in ('Hour', 'Day', 'Week', 'Month', 'Quarter', 'HalfYear', 'Year')
+--check @Start/@Stop/@Step
+--we should be able to cast @Start and @Stop to the target type
+declare @sql nvarchar(600) = 'select @res = try_cast(@x as ' + @DataType +')'
+
+begin try
+  exec sp_executesql @sql, N'@x sql_variant, @res sql_variant output', @x = @Start, @res = @Start output
+  exec sp_executesql @sql, N'@x sql_variant, @res sql_variant output', @x = @Stop, @res = @Stop output
+end try
+begin catch
+   print 'Can''t convert @Start or @Stop to ' + @DataType
+   print error_message()
+   return
+end catch
+
+set @msg = ''
+if @Start is null
 begin
-  print 'For time-based types these steps are supported: Hour, Day, Week, Month, Quarter, HalfYear and Year'
-  raiserror('@Step is not recognized', 16, 0)
+  set @msg = '@Start can''t be converted to ' + @DataType
+  raiserror(@msg, 16, 0)
   return
-end 
-
-if @BaseType = 'int-based date' and @Step not in ('Day', 'Week', 'Month', 'Quarter', 'HalfYear', 'Year')
+end else if @Stop is null
 begin
-  print 'For int-based date types we support these steps: Day, Week, Month, Quarter, HalfYear, Year'
-  raiserror('@Step is not recognized', 16, 0)
-  return
-end
-
-if @BaseType = 'int-based date' and isnull(@ArgType, '') = 'Hourly'
-begin
-  print 'Int-based date types can''t be Hourly'
-  raiserror('@ArgType is not recognized', 16, 0)
-  return
-end
-
---check @Start and @Stop
-declare 
-  @vStart sql_variant, 
-  @vStop sql_variant,
-  @castSQL varchar(200) = 'select @res = try_cast(@v as ' + @DataType + ')'
-
-exec sp_executesql @sql, N'@v sql_variant, @res sql_variant out', @Start, @vStart out
-exec sp_executesql @sql, N'@v sql_variant, @res sql_variant out', @Stop , @vStop  out
-
-if @vStart is null
-begin
-  set @msg = '@Start can''t be converted to ' + @DataType + '!' 
+  set @msg = '@Stop can''t be converted to ' + @DataType
   raiserror(@msg, 16, 0)
   return
 end
 
-if @vStop is null
-begin
-  set @msg = '@Stop can''t be converted to ' + @DataType + '!' 
-  raiserror(@msg, 16, 0)
-  return
-end
-
-if @vStart > @vStop
+if @Start > @Stop
 begin
   raiserror('@Start can''t be > than @Stop!', 16, 0)
   return
 end
+
+if @BaseType = 'numeric' --for numeric types @Step should be of the same type
+begin
+  exec sp_executesql @sql, N'@x sql_variant, @res sql_variant output', @x = @Step, @res = @Step output
+
+  set @msg = ''
+  if @Step is null
+  begin
+    set @msg = '@Step can''t be converted to ' + @DataType
+    raiserror(@msg, 16, 0)
+    return
+  end
+end
+else if @BaseType = 'time-based' --for time-based types @Step is a string
+begin
+  declare @StepType sysname = cast(sql_variant_property(@Step, 'BaseType') as sysname)
+
+  if @StepType not in ('varchar', 'nvarchar')
+  begin
+    raiserror('@Step must be a string describing interval', 16, 0)
+    return
+  end
+end
+
+
+declare
+  @step_second int = 0, 
+  @step_minute int = 0, 
+  @step_hour   int = 0, 
+  @step_day    int = 0, 
+  @step_week   int = 0, 
+  @step_month  int = 0, 
+  @step_year   int = 0
+
+if @BaseType = 'time-based' --parse interval
+begin
+  --replace plurals
+  declare @interval varchar(300) = 
+    replace(
+      replace(
+        replace(
+          replace(
+            replace(
+              replace(replace(cast(@Step as varchar(300)), 'seconds', 'second'),
+              'minutes', 'minute'),
+            'hours', 'hour'),
+          'days', 'day'),
+        'weeks', 'week'),
+      'months', 'month'),
+    'years', 'year')
+
+  ;with parts as
+  (
+    SELECT quantity = cast(quantity as int), unit
+    FROM 
+    (
+      SELECT quantity = value, unit = lead(value) over(order by (select 1))
+      FROM string_split(@interval, ' ') t
+    ) s
+    WHERE isnumeric(quantity) = 1
+  )
+  SELECT 
+    @step_second = [second], 
+    @step_minute = [minute], 
+    @step_hour   = [hour], 
+    @step_day    = [day], 
+    @step_week   = [week], 
+    @step_month  = [month], 
+    @step_year   = [year]
+  FROM parts p
+    PIVOT (min(quantity) for unit in ([second], [minute], [hour], [day], [week], [month], [year])) t
+  
+  if @step_second     is null
+     and @step_minute is null
+     and @step_hour   is null
+     and @step_day    is null
+     and @step_week   is null
+     and @step_month  is null
+     and @step_year   is null
+  begin
+    raiserror('@Step is not in correct format', 16, 0)
+    return
+  end
+
+  if @DataType = 'date' and (@step_hour > 0 or @step_minute > 0 or @step_second > 0)
+  begin
+    raiserror('This step is not supported for date!', 16, 0)
+    return
+  end
+
+  if @DataType like 'time%' and (@step_day > 0 or @step_week > 0 or @step_month > 0 or @step_year > 0)
+  begin
+    raiserror('This step is not supported for time!', 16, 0)
+    return
+  end
+  --if we have a week increment, first day should be Monday, only for keys
+  --if @step_week > 0 and (datepart(weekday, @Start) + 5) % 7 + 1 <> 1
+  --begin
+  --  raiserror('@Step is not in correct format', 16, 0)
+  --  return
+  --end 
+end  
 
 --
 -- end of parameters validation
@@ -257,61 +336,82 @@ CREATE TABLE #points
 
 declare 
   @list varchar(max) = '',
-  @direction int = case @PFRange when 'RIGHT' then -1 else 1 end
+  @point sql_variant = @Start,
+  @pointStr varchar(50),
+  @params nvarchar(500),
+  @maxN int = 15000 --max number of partitions
 
-if @BaseType = 'time-based date' --set @list
+if @BaseType = 'Numeric'
 begin
-  declare 
-    @curDT datetime2(7) = @vStart,
-    @pointStr varchar(50)
-
-  while @curDT <= @vStop
-  begin
-    set @pointStr = convert(varchar(19), @curDT, 121)
-
-    INSERT INTO #points(pointDT, pointStr) VALUES (@curDT, @pointStr)
-
-    set @list = @list + '''' + @pointStr + ''', ' 
-    set @curDT = dbo.DateCheckpointAddRange(@curDT, @checkpoint_type, 1, @Step)
-  end --while
+  set @sql = N'select @res = cast( cast(@point as ' + @DataType + N') + cast(@step as ' + @DataType + N') as sql_variant)'
+  set @params = N'@point sql_variant, @Step sql_variant, @res sql_variant output'
 end
-else --int-based, set @list
+else
 begin
-  declare 
-    @curI bigint = @vStart, 
-    @new_curI bigint,
-    @valI varchar(25),
-    @valIDT datetime2(7)
+  set @sql = N'declare @t ' + @DataType + N' = cast(@point as ' + @DataType + N')
+if @step_second <> 0 set @t = dateadd(second, @step_second, @t)
+if @step_minute <> 0 set @t = dateadd(minute, @step_minute, @t)
+if @step_hour   <> 0 set @t = dateadd(hour  , @step_hour  , @t)
+if @step_day    <> 0 set @t = dateadd(day   , @step_day   , @t)
+if @step_week   <> 0 set @t = dateadd(week  , @step_week  , @t)
+if @step_month  <> 0 set @t = dateadd(month , @step_month , @t)
+if @step_year   <> 0 set @t = dateadd(year  , @step_year  , @t)
+select @res = cast(@t as sql_variant)
+'
+  set @params = N'@point sql_variant, @step_second int, @step_minute int, @step_hour int, @step_day int, @step_week int, @step_month int, @step_year int, @res sql_variant output'
+end  
 
-  while @curI <= @vStop 
+while @point <= @Stop and @maxN >= 0
+begin
+  --convert to string
+  set @pointStr =
+  case 
+    when @DataType in('date', 'datetime')
+      or @DataType like 'datetime2%'
+      or @DataType like 'datetimeoffset%'
+      or @DataType like 'time%' 
+        then '''' + convert(varchar(30), @point, 121) + ''''
+    when @DataType = 'smalldatetime' 
+      then '''' + cast(convert(varchar(30), @point, 121) as varchar(19)) + ''''
+    else cast(@point as varchar(30))
+  end
+
+  INSERT INTO #points(point, pointStr) VALUES (@point, @pointStr)
+
+  set @list = @list + @pointStr + ', ' 
+  --increment
+  if @BaseType = 'Numeric'
   begin
-    
-    set @pointStr = convert(varchar(25), @curI)
+    --set @point += @Step
+    exec sp_executesql @sql, @params, @point = @point, @Step = @Step, @res = @point output
+  end
+  else --@BaseType = 'time-based'
+  begin
+    exec sp_executesql @sql, @params, 
+    @point       = @point, 
+    @step_second = @step_second,
+    @step_minute = @step_minute,
+    @step_hour   = @step_hour  ,
+    @step_day    = @step_day   ,
+    @step_week   = @step_week  ,
+    @step_month  = @step_month ,
+    @step_year   = @step_year  ,
+    @res         = @point output
+  end
 
-    set @valIDT = dbo.convert_KeyToDate(@curI, @checkpoint_type)
+  set @maxN -= 1
+end --while
 
-    INSERT INTO #points(pointDT, pointStr) VALUES (@valIDT, @pointStr)
-
-    set @list = @list + @pointStr + ', ' 
-
-    set @new_curI = dbo.KeyAddRange(@curI, @checkpoint_type, 1, @Step)
-
-    if @curI <> @new_curI --if one of Add functions raised an error, @new_curI = @curI
-    begin
-      set @curI = @new_curI
-    end
-    else
-    begin
-      raiserror('Failed to increment @curI!', 16, 0)
-      return
-    end
-  end --while
-end --/set @list
+if @maxN < 0
+begin
+  raiserror('Maximum number of partitions reached', 16, 0)
+  return
+end
 
 if len(@list) > 2
   set @list = substring(@list, 1, len(@list) - 1)
 
-declare @cmd varchar(max) = 'CREATE PARTITION FUNCTION ' + @PFName + '(' + @DataType +') AS RANGE ' + @PFRange + ' FOR VALUES (' + @list + ')'
+declare @cmd varchar(max) = 'CREATE PARTITION FUNCTION ' + quotename(@PFName) + '(' + @DataType +') AS RANGE ' + @PFRange + ' FOR VALUES (' + @list + ')'
 
 if @cmd is null
 begin
@@ -320,15 +420,13 @@ begin
 end
 
 if @PrintOnly = 1
-  print @cmd
+  if len(@cmd) <= 4000
+    print @cmd
+  else 
+    SELECT CAST('<root><![CDATA[' + @cmd + ']]></root>' AS XML)
 else
   exec (@cmd)
-
-if not exists(select 1 from dba.PF_Function where pf_name = @PFName) and @PrintOnly = 0
-begin
-  INSERT INTO dba.PF_Function (pf_name, checkpoint_type, step) values (@PFName, @checkpoint_type, @Step)
-end
-
+/*
 --
 -- PS
 --
@@ -385,4 +483,5 @@ begin
   else
     exec (@cmd)
 end --create PS
+*/
 go
