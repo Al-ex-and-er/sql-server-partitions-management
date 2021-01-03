@@ -132,9 +132,18 @@ begin
     return
   end
 
+  set @PSAllTo  = nullif(trim(@PSAllTo) , '')
+  set @PSLayout = nullif(trim(@PSLayout), '')
+
   if @PSAllTo is not null and @PSLayout is not null
   begin
     set @msg = 'Only one parameter must be specified, @PSAllTo or @PSLayout!'
+    raiserror(@msg, 16, 0)
+    return
+  end
+  else if @PSAllTo is null and @PSLayout is null
+  begin
+    set @msg = '@PSAllTo or @PSLayout must be specified!'
     raiserror(@msg, 16, 0)
     return
   end
@@ -426,62 +435,72 @@ if @PrintOnly = 1
     SELECT CAST('<root><![CDATA[' + @cmd + ']]></root>' AS XML)
 else
   exec (@cmd)
-/*
+
 --
 -- PS
 --
 if @PSName is not null --let's create PS
 begin
-  UPDATE t
-  SET t.FGName = f.FGName
-  FROM #points t
-    join dba.PF_FileGroup_Config f
-      on  (@PFRange = 'RIGHT' and t.pointDT >= DateFrom and t.pointDT <  DateTo)
-       or (@PFRange = 'LEFT'  and t.pointDT >  DateFrom and t.pointDT <= DateTo)
+	if @PSAllTo is not null
+	begin
+	  if substring(@PSAllTo, 1, 1) <> '['
+	    set @PSAllTo = quotename(@PSAllTo)
 
-  declare @notAssignedPoint datetime2(7)
-  set @notAssignedPoint = (select top 1 pointDT from #points where FGName is null)
+	  set @cmd = 'CREATE PARTITION SCHEME ' + @PSName + ' AS PARTITION ' + @PFName + ' ALL TO (' + @PSAllTo + ')'
+	end --/@PSAllTo is not null
+	else --@PSAllTo is null, use sspm.PS_Layout
+	begin
+	  UPDATE t
+	  SET t.FGName = f.FGName
+	  FROM #points t
+		join sspm.PS_Layout f
+		  on  (@PFRange = 'RIGHT' and t.point >= PointFrom and t.point <  PointTo)
+		   or (@PFRange = 'LEFT'  and t.point >  PointFrom and t.point <= PointTo)
 
-  if @notAssignedPoint is not null
-  begin
-    set @msg = 'Can''t find filegroup for point ' + CONVERT(varchar(32), @notAssignedPoint, 121) + ' !' 
-    raiserror(@msg, 16, 0)
-    return
-  end
+	  declare @notAssignedPoint sql_variant
+	  set @notAssignedPoint = (select top 1 point from #points where FGName is null)
 
-  declare @ExtraFG sysname = 
-    case @PFRange
-      when 'RIGHT' then 'FG_HIST'
-      when 'LEFT' then 'FG_HEAD'
-    end
+	  if @notAssignedPoint is not null
+	  begin
+		set @msg = 'Can''t find filegroup for point ' + CONVERT(varchar(32), @notAssignedPoint, 121) + ' !' 
+		raiserror(@msg, 16, 0)
+		return
+	  end
 
-  set @list = ''
+	  declare @ExtraFG sysname = 
+		case @PFRange
+		  when 'RIGHT' then 'FG_LEFTMOST'
+		  when 'LEFT' then 'FG_RIGHTMOST'
+		end
 
-  if @PFRange = 'RIGHT' 
-    set @list = '[' + @ExtraFG + '], '
+	  set @list = ''
 
-  SELECT @list = @list + '[' + t.FGName + '], '
-  FROM #points t
-  ORDER BY id
+	  if @PFRange = 'RIGHT' 
+		set @list = '[' + @ExtraFG + '], '
 
-  if @PFRange = 'LEFT' 
-    set @list = @list + '[' + @ExtraFG + '], '
+	  SELECT @list = @list + '[' + t.FGName + '], '
+	  FROM #points t
+	  ORDER BY id
 
-  if len(@list) > 2
-    set @list = substring(@list, 1, len(@list) - 1)
+	  if @PFRange = 'LEFT' 
+		set @list = @list + '[' + @ExtraFG + '], '
 
-  set @cmd = 'CREATE PARTITION SCHEME ' + @PSName + ' AS PARTITION ' + @PFName + ' TO (' + @list + ')'
+	  if len(@list) > 2
+		set @list = substring(@list, 1, len(@list) - 1)
 
-  if @cmd is null
-  begin
-    raiserror('Failed to build CREATE PARTITION SCHEME statement!', 16, 0)
-    return
-  end
+	  set @cmd = 'CREATE PARTITION SCHEME ' + @PSName + ' AS PARTITION ' + @PFName + ' TO (' + @list + ')'
+
+	  if @cmd is null
+	  begin
+		raiserror('Failed to build CREATE PARTITION SCHEME statement!', 16, 0)
+		return
+	  end
+	end --create PS
 
   if @PrintOnly = 1
     print @cmd
   else
     exec (@cmd)
-end --create PS
-*/
+
+end
 go

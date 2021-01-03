@@ -1,5 +1,6 @@
 copy ^
 .\Security\Schemas\sspm.sql + ^
+.\Tables\sspm.PS_Layout.sql + ^
 .\Functions\sspm.GetCompression.sql + ^
 .\Functions\sspm.GetFG.sql + ^
 .\Functions\sspm.GetPF.sql + ^
