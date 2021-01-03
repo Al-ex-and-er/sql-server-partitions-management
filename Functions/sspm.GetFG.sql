@@ -1,7 +1,7 @@
 /*
   Returns FileGroup of non-partitioned row table
 */
-CREATE FUNCTION sspm.GetFG (@TableName sysname)
+CREATE OR ALTER FUNCTION sspm.GetFG (@TableName sysname)
 returns sysname
 with returns null on null input
 as
@@ -17,4 +17,3 @@ return
 )
 end
 go
-

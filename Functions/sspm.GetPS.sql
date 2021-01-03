@@ -1,7 +1,7 @@
 /*
   Returns partitioning schema of a partitioned table
 */
-CREATE FUNCTION sspm.GetPS (@TableName sysname)
+CREATE OR ALTER FUNCTION sspm.GetPS (@TableName sysname)
 returns sysname
 with returns null on null input
 as
@@ -17,4 +17,3 @@ return
 )
 end
 go
-

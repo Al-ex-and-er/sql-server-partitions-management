@@ -1,7 +1,7 @@
 /*
   Returns compression of non-partitioned row table
 */
-CREATE FUNCTION sspm.GetCompression (@TableName sysname)
+CREATE OR ALTER FUNCTION sspm.GetCompression (@TableName sysname)
 returns nvarchar(60)
 with returns null on null input
 as
@@ -19,4 +19,3 @@ return
 )
 end
 go
-

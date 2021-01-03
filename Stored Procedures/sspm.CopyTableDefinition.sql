@@ -24,7 +24,7 @@ How to create new table on the same PS
   @TargetPSName = null --default
 */
 
-ALTER PROCEDURE sspm.CopyTableDefinition
+CREATE OR ALTER PROCEDURE sspm.CopyTableDefinition
   @SourceTable sysname,
   @TargetTable sysname,
   @UsePS bit = 0,

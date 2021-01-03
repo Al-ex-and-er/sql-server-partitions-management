@@ -1,7 +1,7 @@
 /*
   Returns partitioning function of a partitioned table
 */
-CREATE FUNCTION sspm.GetPF (@TableName sysname)
+CREATE OR ALTER FUNCTION sspm.GetPF (@TableName sysname)
 returns sysname
 with returns null on null input
 as
@@ -19,4 +19,3 @@ return
 )
 end
 go
-

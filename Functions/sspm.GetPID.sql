@@ -2,7 +2,7 @@
   Returns partition id of @PFName for a @value
   Returns exactly the same result as $partition.PFName(@value) so no any sense to use this function instead
 */
-ALTER FUNCTION sspm.GetPID (@PFName sysname, @value sql_variant)
+CREATE OR ALTER FUNCTION sspm.GetPID (@PFName sysname, @value sql_variant)
 returns int
 as
 begin

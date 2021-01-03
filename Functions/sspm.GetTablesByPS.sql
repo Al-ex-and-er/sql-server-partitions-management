@@ -1,4 +1,4 @@
-CREATE FUNCTION sspm.GetTablesByPS (@PSName sysname)
+CREATE OR ALTER FUNCTION sspm.GetTablesByPS (@PSName sysname)
 RETURNS table
 AS
 RETURN

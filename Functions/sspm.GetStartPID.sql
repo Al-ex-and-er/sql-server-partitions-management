@@ -50,7 +50,7 @@
   As we can see, results for LEFT and RIGHT functions are the same
 
 */
-ALTER FUNCTION sspm.GetStartPID (@PFName sysname, @value sql_variant)
+CREATE OR ALTER FUNCTION sspm.GetStartPID (@PFName sysname, @value sql_variant)
 returns int
 as
 begin
