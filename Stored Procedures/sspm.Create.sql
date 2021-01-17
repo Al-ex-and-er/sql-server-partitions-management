@@ -135,6 +135,9 @@ begin
   set @PSAllTo  = nullif(trim(@PSAllTo) , '')
   set @PSLayout = nullif(trim(@PSLayout), '')
 
+  if @PSAllTo is not null and substring(@PSAllTo, 1, 1) <> '['
+    set @PSAllTo = quotename(@PSAllTo)
+
   if @PSAllTo is not null and @PSLayout is not null
   begin
     set @msg = 'Only one parameter must be specified, @PSAllTo or @PSLayout!'
@@ -441,61 +444,111 @@ else
 --
 if @PSName is not null --let's create PS
 begin
-	if @PSAllTo is not null
-	begin
-	  if substring(@PSAllTo, 1, 1) <> '['
-	    set @PSAllTo = quotename(@PSAllTo)
+  if @PSAllTo is not null
+  begin
+    set @cmd = 'CREATE PARTITION SCHEME ' + @PSName + ' AS PARTITION ' + @PFName + ' ALL TO (' + @PSAllTo + ')'
+  end --/@PSAllTo is not null
+  else --@PSAllTo is null, use sspm.PS_Layout
+  begin
+    UPDATE t
+    SET t.FGName = trim(l.FGName)
+    FROM #points t
+      join sspm.PS_Layout l
+        on
+        ( @PFRange = 'RIGHT' 
+          and ( (l.PointFrom is null and t.point < l.PointTo)
+                or (t.point >= l.PointFrom and t.point < l.PointTo)
+                or (t.point >= l.PointFrom and l.PointTo is null)
+              )
+        )
+        or
+        ( @PFRange = 'LEFT' 
+          and ( (l.PointFrom is null and t.point <= l.PointTo)
+                or (t.point > l.PointFrom and t.point <= l.PointTo)
+                or (t.point > l.PointFrom and l.PointTo is null)
+              )
+        )
+    WHERE l.LayoutName = @PSLayout
 
-	  set @cmd = 'CREATE PARTITION SCHEME ' + @PSName + ' AS PARTITION ' + @PFName + ' ALL TO (' + @PSAllTo + ')'
-	end --/@PSAllTo is not null
-	else --@PSAllTo is null, use sspm.PS_Layout
-	begin
-	  UPDATE t
-	  SET t.FGName = f.FGName
-	  FROM #points t
-		join sspm.PS_Layout f
-		  on  (@PFRange = 'RIGHT' and t.point >= PointFrom and t.point <  PointTo)
-		   or (@PFRange = 'LEFT'  and t.point >  PointFrom and t.point <= PointTo)
+    declare @notAssignedPoint sql_variant
+    set @notAssignedPoint = (select top 1 point from #points where FGName is null)
 
-	  declare @notAssignedPoint sql_variant
-	  set @notAssignedPoint = (select top 1 point from #points where FGName is null)
+    if @notAssignedPoint is not null
+    begin
+      set @pointStr =
+      case 
+        when @DataType in('date', 'datetime')
+          or @DataType like 'datetime2%'
+          or @DataType like 'datetimeoffset%'
+          or @DataType like 'time%' 
+          then '''' + convert(varchar(30), @notAssignedPoint, 121) + ''''
+        when @DataType = 'smalldatetime' 
+          then '''' + cast(convert(varchar(30), @notAssignedPoint, 121) as varchar(19)) + ''''
+        else cast(@notAssignedPoint as varchar(30))
+      end
 
-	  if @notAssignedPoint is not null
-	  begin
-		set @msg = 'Can''t find filegroup for point ' + CONVERT(varchar(32), @notAssignedPoint, 121) + ' !' 
-		raiserror(@msg, 16, 0)
-		return
-	  end
+      set @msg = 'Can''t find filegroup for point ' + CONVERT(varchar(32), @pointStr, 121) + ' !' 
+      raiserror(@msg, 16, 0)
+      return
+    end
 
-	  declare @ExtraFG sysname = 
-		case @PFRange
-		  when 'RIGHT' then 'FG_LEFTMOST'
-		  when 'LEFT' then 'FG_RIGHTMOST'
-		end
+    UPDATE t
+    SET FGName = quotename(FGName)
+    FROM #points t
+    WHERE substring(FGName, 1, 1) <> '['
 
-	  set @list = ''
+    declare @ExtraFG sysname
 
-	  if @PFRange = 'RIGHT' 
-		set @list = '[' + @ExtraFG + '], '
+    if @PFRange = 'RIGHT'
+      SELECT @ExtraFG = FGName
+      FROM sspm.PS_Layout
+      WHERE LayoutName = @PSLayout
+        and PointFrom is null
+    else 
+      SELECT @ExtraFG = FGName
+      FROM sspm.PS_Layout
+      WHERE LayoutName = @PSLayout
+        and PointTo is null
 
-	  SELECT @list = @list + '[' + t.FGName + '], '
-	  FROM #points t
-	  ORDER BY id
+    if @ExtraFG is null
+    begin
+      set @msg = 
+        case @PFRange 
+          when 'RIGHT' then 'The leftmost' 
+          else 'The rightmost' 
+        end + ' file group is not defined in the layout '
+        + @PSLayout
 
-	  if @PFRange = 'LEFT' 
-		set @list = @list + '[' + @ExtraFG + '], '
+      raiserror(@msg, 16, 0)
+    end
+    else if substring(@ExtraFG, 1, 1) <> '['
+    begin
+      set @ExtraFG = quotename(@ExtraFG)
+    end
 
-	  if len(@list) > 2
-		set @list = substring(@list, 1, len(@list) - 1)
+    if @PFRange = 'RIGHT'
+      set @list = @ExtraFG + ', '
+    else
+      set @list = ''  
 
-	  set @cmd = 'CREATE PARTITION SCHEME ' + @PSName + ' AS PARTITION ' + @PFName + ' TO (' + @list + ')'
+    SELECT @list = @list + t.FGName + ', '
+    FROM #points t
+    ORDER BY id
 
-	  if @cmd is null
-	  begin
-		raiserror('Failed to build CREATE PARTITION SCHEME statement!', 16, 0)
-		return
-	  end
-	end --create PS
+    if @PFRange = 'LEFT'
+      set @list = @list + @ExtraFG + ', '
+
+    if len(@list) > 2
+      set @list = substring(@list, 1, len(@list) - 1)
+
+    set @cmd = 'CREATE PARTITION SCHEME ' + @PSName + ' AS PARTITION ' + @PFName + ' TO (' + @list + ')'
+
+    if @cmd is null
+    begin
+      raiserror('Failed to build CREATE PARTITION SCHEME statement!', 16, 0)
+      return
+    end
+  end --create PS
 
   if @PrintOnly = 1
     print @cmd
