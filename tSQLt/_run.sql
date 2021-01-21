@@ -16,5 +16,7 @@ EXEC tSQLt.Run 'testSSPM.Test_F_GetStartPID'
 EXEC tSQLt.Run 'testSSPM.Test_F_GetStopPID'
 EXEC tSQLt.Run 'testSSPM.Test_F_GetPIDRange'
 
+EXEC tSQLt.Run 'testSSPM.Test_Create_PF_int'
+EXEC tSQLt.Run 'testSSPM.Test_Create_PF_datetime'
 
 

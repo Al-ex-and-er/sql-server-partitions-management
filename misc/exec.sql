@@ -4,8 +4,8 @@ exec sspm.CreatePF
   @Stop     = '2020-01-02 06:00:00',
   @Step     = '30 minutes',
   @DataType = 'datetime',
-	@PSName   = 'ps_int',
-	@PSAllTo  = 'PRIMARY',
+  @PSName   = 'ps_int',
+  @PSAllTo  = 'PRIMARY',
   @PrintOnly= 1
 
 select *
@@ -26,7 +26,7 @@ exec sspm.CreatePF
   @Step     = 10,
   @DataType = 'int',
   @PFRange  = 'LEFT',
-	@PSName   = 'ps_int',
+  @PSName   = 'ps_int',
   @PSLayout = 'test_2_int_points',
---	@PSAllTo  = 'PRIMARY',
+--  @PSAllTo  = 'PRIMARY',
   @PrintOnly= 1
