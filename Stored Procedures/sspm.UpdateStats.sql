@@ -3,10 +3,34 @@ CREATE OR ALTER PROCEDURE sspm.UpdateStats
   @TableName sysname,
   @From sql_variant = NULL,
   @To   sql_variant = NULL,
+  @NoRecompute bit = 0,
+  @MaxDOP int = 0,--Uses the actual number of processors or fewer based on the current system workload.
+  @PKOnly bit = 1,
+  @StatsNames nvarchar(max) = null,
   @Debug bit = 0
 )
 as 
 set nocount on
+
+if not @MaxDOP between 0 and 64
+begin
+  raiserror('@MaxDOP should be between 0 and 64!', 16, 0)
+  return
+end
+
+if @PKOnly = 1 and @StatsNames is not null
+begin
+  raiserror('@PKOnly OR @StatsNames can be used, not both!', 16, 0)
+  return
+end
+
+if @From is not null 
+  and @To is not null 
+  and @From > @To
+begin
+  raiserror('@From > @To!', 16, 0)
+  return
+end
 
 --check @TableName
 declare
@@ -31,15 +55,7 @@ declare @object_id int = object_id(@TableName)
 
 if @object_id is null
 begin
-  raiserror ('Can''t find table, @object_id is null!', 16, 0)
-  return
-end
-
-if @From is not null 
-  and @To is not null
-  and @From > @To
-begin
-  raiserror ('@From > @To!', 16, 0)
+  raiserror ('Can''t find a table!', 16, 0)
   return
 end
 
@@ -191,16 +207,100 @@ end
 if @Debug > 0
   print '@MinPartNum = ' + isnull(cast(@MinPartNum as varchar(10)), 'NULL') + ', @MaxPartNum = ' + isnull(cast(@MaxPartNum as varchar(10)), 'NULL')
 
-declare @cmd nvarchar(max)
+DROP TABLE if exists #StatsNames
 
-if @partitioned = 0
+CREATE TABLE #StatsNames 
+(
+  StatsName sysname not null, 
+  stats_id int null, 
+  is_incremental bit null
+)
+
+declare @StatsName sysname
+
+if @StatsNames is not null
 begin
-  set @cmd = ''
+  INSERT INTO #StatsNames(StatsName)
+  SELECT trim(value)
+  FROM string_split(@StatsNames, ',')
+  WHERE value > ''
+
+  if @@rowcount = 0
+  begin
+    raiserror ('@StatsNames contains no names!', 16, 0)
+    return
+  end
+
+  UPDATE t
+  SET
+    t.stats_id = s.stats_id,
+    t.is_incremental = s.is_incremental
+  FROM #StatsNames t
+    join sys.stats s
+      on s.object_id = @object_id
+        and s.name = t.StatsName
+
+  if exists(select 1 from #StatsNames where stats_id is null)
+  begin
+    SELECT top 1 @StatsName = StatsName
+    FROM #StatsNames
+    WHERE stats_id is null
+
+    raiserror ('One of the statistics in the list doesn''t exists: [%s]', 16, 0, @StatsName)
+    return
+  end
 end
+else --@PKOnly = 1 or @PKOnly = 0
+begin
+  INSERT INTO #StatsNames(StatsName, stats_id, is_incremental)
+  SELECT [name], stats_id, is_incremental
+  FROM sys.stats
+  WHERE [object_id] = @object_id
+    and
+      ( @PKOnly = 0
+        or (@PKOnly = 1 and stats_id = 1)
+      )
+end
+
+--Check all the stats on the table are incremental
+
+set @StatsName = null
+
+SELECT @StatsName = StatsName
+FROM #StatsNames 
+WHERE is_incremental = 0
+
+if @StatsName is not null
+begin
+  raiserror ('Non-incremental statistics can''t be updated: %s!', 16, 0, @StatsName)
+  return
+end
+
+if @PKOnly = 1 and not exists(select 1 from #StatsNames where stats_id = 1)
+begin
+  raiserror ('@PKOnly = 1 but there is no a PK on the table!', 16, 0)
+  return
+end
+
+--WITH RESAMPLE is required because partition statistics built with different sample rates cannot be merged together.
+--NORECOMPUTE Disable the automatic statistics update option, AUTO_UPDATE_STATISTICS, for the specified statistics.
+--  If this option is specified, the query optimizer completes this statistics update and disables future updates.
+declare @update_stats nvarchar(max) = ''
+
+if @partitioned = 1
+  set @update_stats =
+     'UPDATE STATISTICS ' + @tablename + ' @StatsName WITH RESAMPLE ON PARTITIONS(@pid)'
+    + case when @NoRecompute = 1 then ', NORECOMPUTE' else '' end
+    + ';'
 else
-begin
-  declare @CurPartNum int = @MinPartNum
+  set @update_stats =
+     'UPDATE STATISTICS ' + @tablename + ' @StatsName WITH RESAMPLE'
+    + case when @NoRecompute = 1 then ', NORECOMPUTE' else '' end
+    + ';'
 
-end
+
+declare
+  @CurPartNum int = @MinPartNum,
+  @cmd nvarchar(max)
 
 go
