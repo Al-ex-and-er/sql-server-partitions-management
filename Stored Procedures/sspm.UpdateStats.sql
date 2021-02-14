@@ -4,7 +4,7 @@ CREATE OR ALTER PROCEDURE sspm.UpdateStats
   @From sql_variant = NULL,
   @To   sql_variant = NULL,
   @MaxDOP int = 0,--Uses the actual number of processors or fewer based on the current system workload.
-  @PKOnly bit = 1,
+  @PKOnly bit = null,
   @StatsNames nvarchar(max) = null,
   @Debug bit = 0
 )
@@ -15,6 +15,16 @@ if not @MaxDOP between 0 and 64
 begin
   raiserror('@MaxDOP should be between 0 and 64!', 16, 0)
   return
+end
+
+if @StatsNames is not null and @PKOnly is null
+begin
+  set @PKOnly = 0
+end
+
+if @StatsNames is null and @PKOnly is null
+begin
+  set @PKOnly = 1
 end
 
 if @PKOnly = 1 and @StatsNames is not null
@@ -245,7 +255,7 @@ declare @update_stats nvarchar(max)
 
 set @update_stats =
   'UPDATE STATISTICS ' + @TableName + ' @StatsName WITH RESAMPLE ON PARTITIONS(@pid)'
-  + case when @MaxDOP > 0 then ' MAXDOP = ' + cast(@MaxDOP as varchar(16)) else '' end
+  + case when @MaxDOP > 0 then ', MAXDOP = ' + cast(@MaxDOP as varchar(16)) else '' end
   + ';'
 
 declare
