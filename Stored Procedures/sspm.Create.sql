@@ -1,3 +1,6 @@
+--
+-- Copyright (c) 2020 Alexander (Oleksandr) Sinitsyn
+--
 /*
   This procedure creates partition function (PF) and (optionally) partition schema (PS).
 

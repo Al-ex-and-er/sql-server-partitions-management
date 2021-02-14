@@ -1,3 +1,6 @@
+--
+-- Copyright (c) 2020 Alexander (Oleksandr) Sinitsyn
+--
 /*
   Returns partition id of @PFName for a @value
   Returns exactly the same result as $partition.PFName(@value) so no any sense to use this function instead

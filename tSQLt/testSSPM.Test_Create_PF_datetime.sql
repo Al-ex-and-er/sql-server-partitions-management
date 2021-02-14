@@ -1,3 +1,6 @@
+--
+-- Copyright (c) 2020 Alexander (Oleksandr) Sinitsyn
+--
 --DROP PROCEDURE testSSPM.Test_Create_PF_datetime
 CREATE or alter PROCEDURE testSSPM.Test_Create_PF_datetime
 as

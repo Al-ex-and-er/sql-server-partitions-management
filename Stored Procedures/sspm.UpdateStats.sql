@@ -1,3 +1,6 @@
+--
+-- Copyright (c) 2020 Alexander (Oleksandr) Sinitsyn
+--
 CREATE OR ALTER PROCEDURE sspm.UpdateStats
 (
   @TableName sysname,

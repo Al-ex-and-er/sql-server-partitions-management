@@ -1,3 +1,6 @@
+--
+-- Copyright (c) 2020 Alexander (Oleksandr) Sinitsyn
+--
 /*
 This function takes partition function and range of points, and returns range of partition IDs.
 It is two functions (sspm.GetStartPID, sspm.GetStopPID) combined in one.

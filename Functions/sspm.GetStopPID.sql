@@ -1,3 +1,6 @@
+--
+-- Copyright (c) 2020 Alexander (Oleksandr) Sinitsyn
+--
 /*
   When we switch out partition, we can handle only partition as a whole.
   When we provide a range of values to switch out, we have to find out first and last whole partitions inside of this range.

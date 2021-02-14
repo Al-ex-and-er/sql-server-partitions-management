@@ -1,3 +1,6 @@
+--
+-- Copyright (c) 2020 Alexander (Oleksandr) Sinitsyn
+--
 CREATE PROCEDURE testSSPM.Test_CopyTable_Heap2
 as
 set nocount on

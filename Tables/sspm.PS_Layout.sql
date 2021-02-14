@@ -1,3 +1,6 @@
+--
+-- Copyright (c) 2020 Alexander (Oleksandr) Sinitsyn
+--
 --DROP TABLE sspm.PS_Layout
 CREATE TABLE sspm.PS_Layout
 (
