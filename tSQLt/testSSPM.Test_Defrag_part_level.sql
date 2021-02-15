@@ -1,3 +1,6 @@
+--
+-- Copyright (c) 2020 Alexander (Oleksandr) Sinitsyn
+--
 CREATE PROCEDURE testSSPM.Test_Defrag_part_level
 as
 set nocount on

@@ -1,10 +1,14 @@
+--
+-- Copyright (c) 2020 Alexander (Oleksandr) Sinitsyn
+--
+--DROP TABLE sspm.PS_Layout
 CREATE TABLE sspm.PS_Layout
 (
   LayoutName varchar(50) not null,
-  PointFrom sql_variant not null,
-  PointTo sql_variant not null,
+  PointFrom sql_variant null,
+  PointTo sql_variant null,
   FGName sysname not null, 
-  constraint PK_sspm_PS_Layout primary key(LayoutName, PointFrom)
+  constraint UQ_sspm_PS_Layout unique(LayoutName, PointFrom)
 )
 
 /*

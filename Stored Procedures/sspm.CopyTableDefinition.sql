@@ -1,3 +1,6 @@
+--
+-- Copyright (c) 2020 Alexander (Oleksandr) Sinitsyn
+--
 /*
 The main goal of sspm.CopyTableDefinition is to create a table that can be a target of switch partition.
 Because of this it is not a perfect table schema replication procedure.

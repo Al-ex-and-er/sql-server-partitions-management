@@ -1,3 +1,6 @@
+--
+-- Copyright (c) 2020 Alexander (Oleksandr) Sinitsyn
+--
 CREATE OR ALTER PROCEDURE testSSPM.Test_Switch_R
 as
 set nocount on

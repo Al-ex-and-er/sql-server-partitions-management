@@ -1,3 +1,6 @@
+--
+-- Copyright (c) 2020 Alexander (Oleksandr) Sinitsyn
+--
 /*
   This SP can be used to
     1. switch the range of partitions from @SourceTable to @TargetTable (appropriate partitions in @TargetTable will be emptied)

@@ -1,3 +1,6 @@
+--
+-- Copyright (c) 2020 Alexander (Oleksandr) Sinitsyn
+--
 /*
 Not partitioned tables are supported too.
 
@@ -160,7 +163,7 @@ FROM sys.indexes i with(nolock)
 WHERE i.object_id = @object_id
   AND i.type in(0, 1)
 
-set @partitioned = IIF(@PF is null, 0, 1)
+set @partitioned = iif(@PF is null, 0, 1)
 
 if @Debug > 0
   print '@PF = ' + isnull(@PF, 'NULL')
