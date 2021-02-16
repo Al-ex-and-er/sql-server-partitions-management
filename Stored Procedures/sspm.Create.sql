@@ -10,33 +10,16 @@
 
   Partition function can be based on any integer and date time type. 
   
-  @ArgType can be:
-
-    for date keys:
-
-    DateKey               
-    WeekKey
-    MonthKey
-    YearKey
-
-    for dates
-
-    'Time-based'
-
-    for numbers
-
-    Number
-
   @DataType can be:
 
-    time-based          int-based
+    time-based          numeric
     ----------          ---------
-    time[(n)]           bigint
-    date                int
-    smalldatetime       smallint
-    datetime            tinyint
-    datetime2[(n)]
-    datetimeoffset[(n)]
+    time[(n)]           bigint, int, smallint, tinyint
+    date                smallmoney, money         
+    smalldatetime       real, float
+    datetime            numeric, decimal
+    datetime2[(n)]      
+    datetimeoffset[(n)] 
 
   @Step can be
     1 - for numbers, it is just a single number, increment
@@ -66,7 +49,6 @@
   
   exec sspm.CreatePF
     @PFName   = 'pf_int',
-    @ArgType  = 'number',
     @Start    = 0,
     @Stop     = 100,
     @Step     = 10,
@@ -77,7 +59,6 @@
 CREATE or alter PROCEDURE sspm.CreatePF
 (
   @PFName    sysname,
---  @ArgType   varchar(12),
   @Start     sql_variant,
   @Stop      sql_variant,
   @Step      sql_variant,
@@ -108,12 +89,6 @@ begin
   raiserror(@msg, 16, 0)
   return
 end
-
---if @ArgType not in ('DateKey', 'WeeklKey', 'MonthKey', 'YearKey', 'Time-based', 'Number')
---begin
---  raiserror('@ArgType is wrong', 16, 0)
---  return
---end
 
 set @PFRange = upper(ltrim(rtrim(@PFRange)))
 
@@ -165,7 +140,7 @@ begin
 end
 
 /*
-find out @BaseType, time-based or int-based
+find out @BaseType, time-based or numeric
 */
 declare @BaseType varchar(20) = null
 

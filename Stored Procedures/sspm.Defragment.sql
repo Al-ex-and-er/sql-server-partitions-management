@@ -150,7 +150,6 @@ end
 declare 
   @PF sysname, 
   @PFType sysname, --type of partition function
-  @PFBaseType varchar(10), --super-type of PF, int-based or date-based
   @partitioned bit = 1
 
 --Get the partition function for the table
@@ -187,37 +186,6 @@ begin
 
   if @Debug > 0
     print '@PFType = ' + isnull(@PFType, 'NULL')
-  /*
-  find out @PFBaseType, time-based or int-based
-  */
-  set @PFBaseType = 
-    case 
-      when @PFType in (N'date', N'smalldatetime', N'datetime')
-        or @PFType like N'time%'
-        or @PFType like N'datetime2%'
-        or @PFType like N'datetimeoffset%'
-      then 'time-based'
-      when @PFType in (N'bigint', N'int', N'smallint', N'tinyint')
-      then 'int-based'
-    end
-
-  if @PFBaseType is null
-  begin
-    print '@PFType is not recognized, type can be date/time or any integer type'
-    print 'Options are '
-    print ''
-    print 'time-based          int-based'
-    print '----------          ---------'
-    print 'time[(n)]           bigint'
-    print 'date                int'
-    print 'smalldatetime       smallint'
-    print 'datetime            tinyint'
-    print 'datetime2[(n)]'
-    print 'datetimeoffset[(n)]'
-    raiserror('@PFType is not recognized', 16, 0)
-    return
-  end
-
 end
 
 if @From is not null and @To is not null and @partitioned = 0
