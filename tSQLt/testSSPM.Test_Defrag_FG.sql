@@ -50,118 +50,23 @@ CREATE TABLE #log
 )
 
 INSERT INTO #log
-EXEC sspm.Defragment
-  @TableName = 'dbo.TestDefragFG1',
-  @From = null,
-  @To = 10,
-  @PKOnly = 1,
-  @Debug = 1
-
-if 1 <> (select count(*) from #log)
-  and 1 <> (select count(*) from #log where pid = 1)
-begin
-  exec tSQLt.Fail 'Only one the leftmost partition should be affected!'
-end
-
-TRUNCATE TABLE #log
-
-INSERT INTO #log
-EXEC sspm.Defragment
-  @TableName = 'dbo.TestDefragFG1',
-  @From = 20,
-  @To = null,
-  @PKOnly = 1,
-  @Debug = 1
-
-if 1 <> (select count(*) from #log)
-  and 1 <> (select count(*) from #log where pid = 3)
-begin
-  exec tSQLt.Fail 'Only one the rightmost partition should be affected!'
-end
-
-TRUNCATE TABLE #log
-
-INSERT INTO #log
-EXEC sspm.Defragment
-  @TableName = 'dbo.TestDefragFG1',
-  @From = 10,
-  @To = 20,
-  @PKOnly = 1,
-  @Debug = 1
-
-if 1 <> (select count(*) from #log)
-  and 1 <> (select count(*) from #log where pid = 2)
-begin
-  exec tSQLt.Fail 'Only partition #2 should be affected!'
-end
-
-TRUNCATE TABLE #log
-
-INSERT INTO #log
-EXEC sspm.Defragment
-  @TableName = 'dbo.TestDefragFG1',
-  @From = null,
-  @To = 30,
-  @PKOnly = 1,
-  @Debug = 1
-
-if 2 <> (select count(*) from #log)
-  and 2 <> (select count(*) from #log where pid in (1, 2))
-begin
-  exec tSQLt.Fail 'First two partitions should be affected!'
-end
-
-TRUNCATE TABLE #log
-
-INSERT INTO #log
-EXEC sspm.Defragment
-  @TableName = 'dbo.TestDefragFG1',
-  @From = 10,
-  @To = null,
-  @PKOnly = 1,
-  @Debug = 1
-
-if 2 <> (select count(*) from #log)
-  and 2 <> (select count(*) from #log where pid in (2, 3))
-begin
-  exec tSQLt.Fail 'Last two partitions should be affected!'
-end
-
-TRUNCATE TABLE #log
-
-INSERT INTO #log
-EXEC sspm.Defragment
-  @TableName = 'dbo.TestDefragFG1',
+EXEC sspm.DefragmentFG
+  @FGName = 'TestFG',
   @From = null,
   @To = null,
-  @PKOnly = 1,
+  @PKOnly = 0,
   @Debug = 1
 
-if 3 <> (select count(*) from #log)
-  and 3 <> (select count(*) from #log where pid in (1, 2, 3))
+if 6 <> (select count(*) from #log)
 begin
-  exec tSQLt.Fail 'All three partitions should be affected!'
+  exec tSQLt.Fail '6 partitions on 2 indexes expected!'
 end
-
-
-declare @isOK bit = 0
-
-begin try
-  EXEC sspm.Defragment
-    @TableName = 'dbo.TestDefragFG1',
-    @IndexName = 'wrong name',
-    @Debug = 1
-end try
-begin catch
-  set @isOK = 1
-end catch
-
-if @isOK = 0
-  exec tSQLt.Fail 'proc should fail on not-existing index!'
 
 /*
 DROP TABLE dbo.TestDefragFG1
 DROP PARTITION SCHEME PS_TestDefragFG_R
 DROP PARTITION FUNCTION PF_TestDefragFG_R
+ALTER DATABASE sspm REMOVE FILE sspmTestFG
+ALTER DATABASE sspm REMOVE FILEGROUP TestFG
 */
 go
