@@ -1,28 +1,28 @@
 --
 -- Copyright (c) 2020 Alexander (Oleksandr) Sinitsyn
 --
-CREATE or alter PROCEDURE testSSPM.Test_Defrag_part_level
+CREATE or alter PROCEDURE testSSPM.Test_Rebuild_part_level
 as
 set nocount on
 
-CREATE PARTITION FUNCTION PF_TestGetPIDRange_R (int) AS RANGE RIGHT FOR VALUES (10, 20)
-CREATE PARTITION SCHEME PS_TestGetPIDRange_R AS PARTITION PF_TestGetPIDRange_R ALL TO ([PRIMARY])
+CREATE PARTITION FUNCTION PF_TestRebuild_R (int) AS RANGE RIGHT FOR VALUES (10, 20)
+CREATE PARTITION SCHEME PS_TestRebuild_R AS PARTITION PF_TestRebuild_R ALL TO ([PRIMARY])
 
-CREATE TABLE dbo.TestDefrag2
+CREATE TABLE dbo.TestRebuild2
 (
   C1 int not null,
   UID uniqueidentifier default newid(),
   C2 nvarchar(200) not null,
-  constraint PK_TestDefrag2 primary key(UID,  C1) on PS_TestGetPIDRange_R(C1)
+  constraint PK_TestRebuild2 primary key(UID,  C1) on PS_TestRebuild_R(C1)
 )
 
-CREATE NONCLUSTERED INDEX IX_TestDefrag2_C1 ON dbo.TestDefrag2(C2) on PS_TestGetPIDRange_R(C1)
+CREATE NONCLUSTERED INDEX IX_TestRebuild2_C1 ON dbo.TestRebuild2(C2) on PS_TestRebuild_R(C1)
 
 declare @cnt int = 0
 
 while @cnt < 2
 begin
-  INSERT INTO dbo.TestDefrag2 (C1, C2)
+  INSERT INTO dbo.TestRebuild2 (C1, C2)
   SELECT top 100000
     C1 = abs(checksum(newid())) % 26,
     C2 = a.name + b.name
@@ -43,8 +43,8 @@ CREATE TABLE #log
 )
 
 INSERT INTO #log
-EXEC sspm.Defragment
-  @TableName = 'dbo.TestDefrag2',
+EXEC sspm.Rebuild
+  @TableName = 'dbo.TestRebuild2',
   @From = null,
   @To = 10,
   @PKOnly = 1,
@@ -59,8 +59,8 @@ end
 TRUNCATE TABLE #log
 
 INSERT INTO #log
-EXEC sspm.Defragment
-  @TableName = 'dbo.TestDefrag2',
+EXEC sspm.Rebuild
+  @TableName = 'dbo.TestRebuild2',
   @From = 20,
   @To = null,
   @PKOnly = 1,
@@ -75,8 +75,8 @@ end
 TRUNCATE TABLE #log
 
 INSERT INTO #log
-EXEC sspm.Defragment
-  @TableName = 'dbo.TestDefrag2',
+EXEC sspm.Rebuild
+  @TableName = 'dbo.TestRebuild2',
   @From = 10,
   @To = 20,
   @PKOnly = 1,
@@ -91,8 +91,8 @@ end
 TRUNCATE TABLE #log
 
 INSERT INTO #log
-EXEC sspm.Defragment
-  @TableName = 'dbo.TestDefrag2',
+EXEC sspm.Rebuild
+  @TableName = 'dbo.TestRebuild2',
   @From = null,
   @To = 30,
   @PKOnly = 1,
@@ -107,8 +107,8 @@ end
 TRUNCATE TABLE #log
 
 INSERT INTO #log
-EXEC sspm.Defragment
-  @TableName = 'dbo.TestDefrag2',
+EXEC sspm.Rebuild
+  @TableName = 'dbo.TestRebuild2',
   @From = 10,
   @To = null,
   @PKOnly = 1,
@@ -123,8 +123,8 @@ end
 TRUNCATE TABLE #log
 
 INSERT INTO #log
-EXEC sspm.Defragment
-  @TableName = 'dbo.TestDefrag2',
+EXEC sspm.Rebuild
+  @TableName = 'dbo.TestRebuild2',
   @From = null,
   @To = null,
   @PKOnly = 1,
@@ -140,8 +140,8 @@ end
 declare @isOK bit = 0
 
 begin try
-  EXEC sspm.Defragment
-    @TableName = 'dbo.TestDefrag2',
+  EXEC sspm.Rebuild
+    @TableName = 'dbo.TestRebuild2',
     @IndexName = 'wrong name',
     @Debug = 1
 end try
@@ -153,8 +153,8 @@ if @isOK = 0
   exec tSQLt.Fail 'proc should fail on not-existing index!'
 
 /*
-DROP TABLE dbo.TestDefrag2
-DROP PARTITION SCHEME PS_TestGetPIDRange_R
-DROP PARTITION FUNCTION PF_TestGetPIDRange_R
+DROP TABLE dbo.TestRebuild2
+DROP PARTITION SCHEME PS_TestRebuild_R
+DROP PARTITION FUNCTION PF_TestRebuild_R
 */
 go

@@ -1,7 +1,7 @@
 --
 -- Copyright (c) 2020 Alexander (Oleksandr) Sinitsyn
 --
-CREATE PROCEDURE sspm.DefragmentFG
+CREATE PROCEDURE sspm.RebuildFG
 (
   @FGName sysname,
   @From   sql_variant = NULL,
@@ -54,7 +54,7 @@ while @@fetch_status = 0
 begin
   raiserror(@cur_table_name, 0, 0) with nowait
 
-  exec sspm.Defragment
+  exec sspm.Rebuild
    @TableName = @cur_table_name,
    @From      = @From,
    @To        = @To,

@@ -1,7 +1,7 @@
 --
 -- Copyright (c) 2020 Alexander (Oleksandr) Sinitsyn
 --
-CREATE or alter PROCEDURE testSSPM.Test_Defrag_FG
+CREATE or alter PROCEDURE testSSPM.Test_Rebuild_FG
 as
 set nocount on
 
@@ -50,7 +50,7 @@ CREATE TABLE #log
 )
 
 INSERT INTO #log
-EXEC sspm.Defragment
+EXEC sspm.Rebuild
   @TableName = 'dbo.TestDefragFG1',
   @From = null,
   @To = 10,
@@ -66,7 +66,7 @@ end
 TRUNCATE TABLE #log
 
 INSERT INTO #log
-EXEC sspm.Defragment
+EXEC sspm.Rebuild
   @TableName = 'dbo.TestDefragFG1',
   @From = 20,
   @To = null,
@@ -82,7 +82,7 @@ end
 TRUNCATE TABLE #log
 
 INSERT INTO #log
-EXEC sspm.Defragment
+EXEC sspm.Rebuild
   @TableName = 'dbo.TestDefragFG1',
   @From = 10,
   @To = 20,
@@ -98,7 +98,7 @@ end
 TRUNCATE TABLE #log
 
 INSERT INTO #log
-EXEC sspm.Defragment
+EXEC sspm.Rebuild
   @TableName = 'dbo.TestDefragFG1',
   @From = null,
   @To = 30,
@@ -114,7 +114,7 @@ end
 TRUNCATE TABLE #log
 
 INSERT INTO #log
-EXEC sspm.Defragment
+EXEC sspm.Rebuild
   @TableName = 'dbo.TestDefragFG1',
   @From = 10,
   @To = null,
@@ -130,7 +130,7 @@ end
 TRUNCATE TABLE #log
 
 INSERT INTO #log
-EXEC sspm.Defragment
+EXEC sspm.Rebuild
   @TableName = 'dbo.TestDefragFG1',
   @From = null,
   @To = null,
@@ -147,7 +147,7 @@ end
 declare @isOK bit = 0
 
 begin try
-  EXEC sspm.Defragment
+  EXEC sspm.Rebuild
     @TableName = 'dbo.TestDefragFG1',
     @IndexName = 'wrong name',
     @Debug = 1

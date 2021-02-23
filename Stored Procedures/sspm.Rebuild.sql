@@ -14,11 +14,11 @@ if @From and/or @To is not specified, function will detect required partitions a
 use cases:
 1. table-level per-partition maintenance, Action must be REBUILD, non index-specific
 
-exec sspm.Defragment 
+exec sspm.Rebuild 
   @TableName = 'Sales.CustomerTransactions', 
   @Action       = 'REBUILD'
 
-exec sspm.Defragment 
+exec sspm.Rebuild 
   @TableName = 'Sales.CustomerTransactions', 
   @From = 20180401,
   @To   = 20180402,
@@ -26,7 +26,7 @@ exec sspm.Defragment
 
 2. PK-only 
 
-exec sspm.Defragment 
+exec sspm.Rebuild 
   @TableName = 'Sales.CustomerTransactions', 
   @From = 20180401,
   @To   = 20180402,
@@ -35,12 +35,12 @@ exec sspm.Defragment
 
 3. One index only
 
-exec sspm.Defragment 
+exec sspm.Rebuild 
   @TableName = 'Sales.CustomerTransactions', 
   @From = 20180401,
   @To   = 20180402,
   @Action       = 'REBUILD',
-  @IndexName   = N'IX_FCT__SbkBetSettled_BetKEy_BetActionTime_Datekey'
+  @IndexName   = N'IX_Sales_CustomerTransactions'
 
 4. AUTO mode. Action is based on actual fragmentation and Threshold
   if fragmentation is < @SkipIfLess, do nothing
@@ -49,7 +49,7 @@ exec sspm.Defragment
   default for @SkipIfLess is 0
   default for @RebuildFrom is 10
 
-exec sspm.Defragment 
+exec sspm.Rebuild 
   @TableName = 'Sales.CustomerTransactions', 
   @Action       = 'AUTO',
   @SkipIfLess  = 1, --percents
@@ -57,7 +57,7 @@ exec sspm.Defragment
 
 */
 
-CREATE OR ALTER PROCEDURE sspm.Defragment
+CREATE OR ALTER PROCEDURE sspm.Rebuild
 (
   @TableName sysname,
   @From sql_variant = NULL,
@@ -341,7 +341,7 @@ set @rc = @@rowcount
 if @rc = 0
 begin
   if @Debug > 0
-    print 'No data, nothing to defragment!'
+    print 'No data, nothing to rebuild!'
   return
 end
 
