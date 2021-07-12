@@ -160,7 +160,7 @@ FROM sys.indexes i with(nolock)
   JOIN sys.partition_functions pf with(nolock)
     on pf.function_id = ps.function_id
 WHERE i.object_id = @object_id
-  AND i.type in(0, 1)
+  AND i.type in(0, 1, 5)
 
 set @partitioned = iif(@PF is null, 0, 1)
 
@@ -280,11 +280,15 @@ if object_id('tempdb..#indexes') is not null
 CREATE TABLE #indexes
 (
   index_id int not null,
-  index_name sysname null --heaps have index without name
+  index_name sysname null, --heaps have index without a name
+  index_type int not null
 )
 
-INSERT INTO #indexes(index_id, index_name)
-SELECT i.index_id, i.name
+INSERT INTO #indexes(index_id, index_name, index_type)
+SELECT 
+  i.index_id, 
+  index_name = i.[name],
+  index_type = i.[type]
 FROM sys.indexes i with(nolock)
   join sys.data_spaces ds with(nolock)
     on ds.data_space_id = i.data_space_id
@@ -314,6 +318,10 @@ end
 if @Debug > 0
   print '@table_level_rebuild = ' + isnull(cast(@table_level_rebuild as varchar(10)), 'NULL')
 
+declare 
+  @index_id_width int = (select max(len(index_id)) from #indexes),
+  @is_clustered_columnstore int = (select count(*) from #indexes where index_type = 5)
+
 if object_id('tempdb..#index_partitions') is not null
   DROP TABLE #index_partitions
 
@@ -321,14 +329,20 @@ CREATE TABLE #index_partitions
 (
   index_id int not null,
   index_name sysname null,
+  index_type int not null,
   pid int not null,
   action varchar(10) null
 )
 
 declare @rc int
 
-INSERT INTO #index_partitions (index_id, index_name, pid, action)
-SELECT i.index_id, i.index_name, p.partition_number pid, @Action
+INSERT INTO #index_partitions (index_id, index_name, index_type, pid, [action])
+SELECT 
+  i.index_id, 
+  i.index_name, 
+  i.index_type, 
+  pid = p.partition_number,
+  [action] = @Action
 FROM #indexes i
   join sys.partitions p with(nolock)
     on p.object_id = @object_id
@@ -348,6 +362,8 @@ end
 select @MinPartNum = min(pid), @MaxPartNum = max(pid)
 from #index_partitions
 
+declare @part_num_width int = len(cast(@MaxPartNum as varchar(10)))
+
 declare @log table
 (
   index_id int not null,
@@ -360,31 +376,37 @@ declare
   @cur_pid int,
   @cur_index_id int,
   @cur_index_name sysname,
+  @cur_index_type int,
   @cur_action varchar(10),
   @cmd nvarchar(max),
   @avg_fragmentation_in_percent float,
+  @fragment_count int,
   @msg varchar(1024),
   @db_id int = db_id()
 
 declare index_partition cursor for
-  SELECT pid, index_id, index_name, action
+  SELECT pid, index_id, index_name, index_type, [action]
   FROM #index_partitions
   ORDER BY pid, index_id
 
 open index_partition
 
-fetch next from index_partition into @cur_pid, @cur_index_id, @cur_index_name, @cur_action
+fetch next from index_partition into @cur_pid, @cur_index_id, @cur_index_name, @cur_index_type, @cur_action
 
 while @@fetch_status = 0
 begin
 
   if @Action = 'AUTO' --measure fragmentation
   begin
-    SELECT @avg_fragmentation_in_percent = avg_fragmentation_in_percent
+    SELECT 
+      @avg_fragmentation_in_percent = avg_fragmentation_in_percent,
+      @fragment_count = fragment_count
     FROM sys.dm_db_index_physical_stats (@db_id, @object_id, @cur_index_id, @cur_pid, 'limited')
 
     set @cur_action = 
       case 
+        when @fragment_count <= 100
+          then 'SKIP'
         when @avg_fragmentation_in_percent < @SkipIfLess
           then 'SKIP'
         when @avg_fragmentation_in_percent < @RebuildFrom
@@ -394,8 +416,9 @@ begin
 
       --if @Debug > 0
       begin
-        set @msg = '@pid = [' + cast(@cur_pid as varchar(16)) +'/' + cast(@MaxPartNum as varchar(16)) + ']'
-          + 'index ' + cast(@cur_index_id as varchar(10))
+        set @msg = convert(varchar(24), getdate(), 121) + ' '
+          + 'partition = [' + right(space(@part_num_width) + cast(@cur_pid as varchar(16)), @part_num_width) +'/' + cast(@MaxPartNum as varchar(16)) + ']'
+          + ' index ' + right(space(@index_id_width) + cast(@cur_index_id as varchar(10)), @index_id_width)
           + ' fragmentation ' + str(@avg_fragmentation_in_percent, 6, 2)
           + ' action ' + @cur_action
 
@@ -415,6 +438,7 @@ begin
   else if @table_level_rebuild = 0 and @partitioned = 0
     set @cmd = 'ALTER INDEX ' + quotename(@cur_index_name) + ' ON ' + @TableName + ' ' + @cur_action
 
+  if @is_clustered_columnstore = 0 --clustered columnstore rebuild can't be online
   if @Online = 1 and @cur_action = 'REBUILD'
     if @Online_MAX_DURATION is not null
       set @cmd = @cmd + ' WITH (ONLINE = ON (WAIT_AT_LOW_PRIORITY (MAX_DURATION = ' 
@@ -435,7 +459,7 @@ begin
     exec sp_executesql @cmd
 
   fetch_next_row:
-  fetch next from index_partition into @cur_pid, @cur_index_id, @cur_index_name, @cur_action
+  fetch next from index_partition into @cur_pid, @cur_index_id, @cur_index_name, @cur_index_type, @cur_action
 end 
 
 close index_partition

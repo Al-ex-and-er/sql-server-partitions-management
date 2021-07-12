@@ -18,9 +18,30 @@ CREATE PROCEDURE sspm.RebuildFG
 as
 set nocount on
 
-if not exists(select 1 from sys.filegroups where name = @FGName)
+declare 
+  @type_desc nvarchar(60),
+  @is_read_only bit,
+  @rn int
+
+select @type_desc = [type_desc], @is_read_only = is_read_only
+from sys.filegroups 
+where name = @FGName
+
+if @type_desc is null
 begin
   raiserror('No such filegroup!', 16, 0)
+  return
+end
+
+if @type_desc <> 'ROWS_FILEGROUP'
+begin
+  raiserror('Only ROWS_FILEGROUP file groups can be defragmented!', 16, 0)
+  return
+end
+
+if @is_read_only = 1 and @Debug = 0
+begin
+  raiserror('We can''t change a read-only file group, @Debug should be 1', 16, 0)
   return
 end
 
@@ -29,15 +50,36 @@ if object_id('tempdb..#tables') is not null
 
 CREATE TABLE #tables (name sysname not null)
 
+--partitioned
 INSERT INTO #tables (name)
 SELECT distinct name = object_schema_name(i.object_id) + '.' + object_name(i.object_id)
 FROM sys.data_spaces fg with(nolock)
-  left join sys.destination_data_spaces dds with(nolock)
+  join sys.destination_data_spaces dds with(nolock)
+    on dds.data_space_id = fg.data_space_id
   join sys.indexes i with(nolock)
-    on i.data_space_id = dds.partition_scheme_id and dds.destination_id = 1
-    on fg.data_space_id = dds.data_space_id and dds.destination_id = 1
-WHERE fg.name = @FGName
-  and fg.type = 'FG'
+    on i.data_space_id = dds.partition_scheme_id
+WHERE fg.[name] = @FGName
+  and fg.[type] = 'FG'
+  and dds.destination_id = 1
+
+set @rn = @@rowcount
+
+--non partitioned
+INSERT INTO #tables (name)
+SELECT object_schema_name(i.object_id) + '.' + object_name(i.object_id)
+FROM sys.indexes i
+  join sys.filegroups fg
+    on i.data_space_id = fg.data_space_id
+WHERE fg.[name] = @FGName
+  and i.[type] in (0, 1, 5)
+
+set @rn += @@rowcount
+
+if @rn = 0
+begin
+  raiserror('No tables in the filegroup!', 0, 0)
+  return
+end
 
 declare @cur_table_name sysname
 
