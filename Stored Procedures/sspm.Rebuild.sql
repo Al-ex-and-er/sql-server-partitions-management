@@ -313,6 +313,10 @@ end
 if exists (select 1 from #indexes where index_name is null) --heaps
 begin
   set @table_level_rebuild = 1
+
+  DELETE 
+  FROM #indexes 
+  WHERE index_name is not null
 end
 
 if @Debug > 0
@@ -434,7 +438,7 @@ begin
   else if @table_level_rebuild = 0 and @partitioned = 1
     set @cmd = 'ALTER INDEX ' + quotename(@cur_index_name) + ' ON ' + @TableName + ' ' + @cur_action + ' PARTITION = ' + cast(@cur_pid as varchar(10))
   else if @table_level_rebuild = 1 and @partitioned = 0
-    set @cmd = 'ALTER TABLE ' + @TableName + ' ' + @Action 
+    set @cmd = 'ALTER TABLE ' + @TableName + ' ' + @cur_action 
   else if @table_level_rebuild = 0 and @partitioned = 0
     set @cmd = 'ALTER INDEX ' + quotename(@cur_index_name) + ' ON ' + @TableName + ' ' + @cur_action
 
