@@ -9,7 +9,7 @@ CREATE PROCEDURE sspm.RebuildFG
   @Action varchar(10) = 'AUTO',
   @SkipIfLess float = 1.0, --treshold to take any action at all,[0.0, 100.0]
   @RebuildFrom int  = 10, --treshold for avg_fragmentation_in_percent to decide what to do, REBUILD or REORGANIZE
-  @Debug  bit = 0,
+  @Debug  tinyint = 0,
   @PKOnly bit = 0,
   @Online bit = 1,
   @Online_MAX_DURATION int = NULL,

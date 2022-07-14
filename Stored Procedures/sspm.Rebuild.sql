@@ -16,31 +16,31 @@ use cases:
 
 exec sspm.Rebuild 
   @TableName = 'Sales.CustomerTransactions', 
-  @Action       = 'REBUILD'
+  @Action    = 'REBUILD'
 
 exec sspm.Rebuild 
   @TableName = 'Sales.CustomerTransactions', 
-  @From = 20180401,
-  @To   = 20180402,
-  @Action       = 'REBUILD'
+  @From   = 20180401,
+  @To     = 20180402,
+  @Action = 'REBUILD'
 
 2. PK-only 
 
 exec sspm.Rebuild 
   @TableName = 'Sales.CustomerTransactions', 
-  @From = 20180401,
-  @To   = 20180402,
-  @Action       = 'REBUILD',
-  @PKOnly       = 1
+  @From   = 20180401,
+  @To     = 20180402,
+  @Action = 'REBUILD',
+  @PKOnly = 1
 
 3. One index only
 
 exec sspm.Rebuild 
   @TableName = 'Sales.CustomerTransactions', 
-  @From = 20180401,
-  @To   = 20180402,
-  @Action       = 'REBUILD',
-  @IndexName   = N'IX_Sales_CustomerTransactions'
+  @IndexName = N'IX_Sales_CustomerTransactions',
+  @From   = 20180401,
+  @To     = 20180402,
+  @Action = 'REBUILD'
 
 4. AUTO mode. Action is based on actual fragmentation and Threshold
   if fragmentation is < @SkipIfLess, do nothing
@@ -50,8 +50,8 @@ exec sspm.Rebuild
   default for @RebuildFrom is 10
 
 exec sspm.Rebuild 
-  @TableName = 'Sales.CustomerTransactions', 
-  @Action       = 'AUTO',
+  @TableName   = 'Sales.CustomerTransactions', 
+  @Action      = 'AUTO',
   @SkipIfLess  = 1, --percents
   @RebuildFrom = 10 --percents
 
@@ -66,7 +66,7 @@ CREATE OR ALTER PROCEDURE sspm.Rebuild
   @Action varchar(10) = 'AUTO',
   @SkipIfLess float = 1.0, --treshold to take any action at all,[0.0, 100.0]
   @RebuildFrom float = 10.0, --treshold for avg_fragmentation_in_percent to decide what to do, REBUILD or REORGANIZE
-  @Debug bit = 0,
+  @Debug tinyint = 0,
   @PKOnly bit = 0,
   @Online bit = 1,
   @Online_MAX_DURATION int = NULL,
@@ -111,6 +111,8 @@ begin
   raiserror ('@RebuildFrom should be > @SkipIfLess!', 16, 0)
   return
 end
+
+set @Action = upper(trim(@Action))
 
 if not @Action in ('REBUILD', 'REORGANIZE', 'AUTO')
 begin
@@ -164,7 +166,7 @@ WHERE i.object_id = @object_id
 
 set @partitioned = iif(@PF is null, 0, 1)
 
-if @Debug > 0
+if @Debug > 1
   print '@PF = ' + isnull(@PF, 'NULL')
 
 if @partitioned = 1
@@ -184,7 +186,7 @@ begin
       on p.system_type_id = t.system_type_id
   WHERE f.name = @PF
 
-  if @Debug > 0
+  if @Debug > 1
     print '@PFType = ' + isnull(@PFType, 'NULL')
 end
 
@@ -260,7 +262,7 @@ begin
   select @MinPartNum = 1, @MaxPartNum = 1
 end
 
-if @Debug > 0
+if @Debug > 1
   print '@MinPartNum = ' + isnull(cast(@MinPartNum as varchar(10)), 'NULL') + ', @MaxPartNum = ' + isnull(cast(@MaxPartNum as varchar(10)), 'NULL')
 
 declare @table_level_rebuild bit = 0 --partitions in all indexes, not a specific index
@@ -319,7 +321,7 @@ begin
   WHERE index_name is not null
 end
 
-if @Debug > 0
+if @Debug > 1
   print '@table_level_rebuild = ' + isnull(cast(@table_level_rebuild as varchar(10)), 'NULL')
 
 declare 
@@ -453,11 +455,15 @@ begin
       set @cmd = @cmd + ' WITH (ONLINE = ON)'
 
   --Set the command to update the statistics;
-  if @Debug = 1
+  if @Debug > 0
   begin
     print @cmd
+
+    if @Debug > 1
+    begin
     INSERT INTO @log(index_id, pid, action, query)
     VALUES (@cur_index_id, @cur_pid, @cur_action, @cmd)
+  end
   end
   else
     exec sp_executesql @cmd
@@ -469,7 +475,7 @@ end
 close index_partition
 deallocate index_partition
 
-if @Debug = 1
+if @Debug > 1
 begin
   select * from @log
 end
