@@ -12,12 +12,13 @@ copy ^
 .\Functions\sspm.GetTablesByFG.sql + ^
 .\Functions\sspm.GetTablesByPF.sql + ^
 .\Functions\sspm.GetTablesByPS.sql + ^
+.\Functions\sspm.GetValueByPID.sql + ^
  ".\Stored Procedures\sspm.AddPoints.sql" + ^
  ".\Stored Procedures\sspm.Compress.sql" + ^
  ".\Stored Procedures\sspm.CopyTableDefinition.sql" + ^
  ".\Stored Procedures\sspm.Create.sql" + ^
- ".\Stored Procedures\sspm.Defragment.sql" + ^
- ".\Stored Procedures\sspm.DefragmentFG.sql" + ^
+ ".\Stored Procedures\sspm.Rebuild.sql" + ^
+ ".\Stored Procedures\sspm.RebuildFG.sql" + ^
  ".\Stored Procedures\sspm.MergePoints.sql" + ^
  ".\Stored Procedures\sspm.Switch.sql" + ^
  ".\Stored Procedures\sspm.UpdateStats.sql" ^

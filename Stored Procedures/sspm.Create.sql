@@ -173,11 +173,13 @@ end
 
 --check @Start/@Stop/@Step
 --we should be able to cast @Start and @Stop to the target type
-declare @sql nvarchar(600) = 'select @res = try_cast(@x as ' + @DataType +')'
+declare 
+  @sql nvarchar(600) = 'select @res = try_cast(@x as ' + @DataType +')',
+  @params nvarchar(500) = N'@x sql_variant, @res sql_variant output'
 
 begin try
-  exec sp_executesql @sql, N'@x sql_variant, @res sql_variant output', @x = @Start, @res = @Start output
-  exec sp_executesql @sql, N'@x sql_variant, @res sql_variant output', @x = @Stop, @res = @Stop output
+  exec sp_executesql @sql, @params, @x = @Start, @res = @Start output
+  exec sp_executesql @sql, @params, @x = @Stop , @res = @Stop  output
 end try
 begin catch
    print 'Can''t convert @Start or @Stop to ' + @DataType
@@ -254,6 +256,25 @@ begin
       'months', 'month'),
     'years', 'year')
 
+  --replace two spaces with one space
+  while patindex('%  %', @interval) > 0
+  begin
+    set @interval = replace(@interval, '  ', ' ')
+  end
+
+  --catch errors like '1day' (no spaces)
+  if exists
+  (
+    SELECT 1
+    FROM string_split(@interval, ' ') t
+    where value not in ('second', 'minute', 'hour', 'day', 'week', 'month', 'year')
+      and isnumeric(value) = 0
+  )
+  begin
+    raiserror('Error in @Step! It should be a ''quantity unit'', like ''1 day''', 16, 0)
+    return
+  end
+
   ;with parts as
   (
     SELECT quantity = cast(quantity as int), unit
@@ -328,7 +349,6 @@ declare
   @list varchar(max) = '',
   @point sql_variant = @Start,
   @pointStr varchar(50),
-  @params nvarchar(500),
   @maxN int = 15000 --max number of partitions
 
 if @BaseType = 'Numeric'
@@ -526,12 +546,15 @@ begin
       raiserror('Failed to build CREATE PARTITION SCHEME statement!', 16, 0)
       return
     end
-  end --create PS
+  end --if
 
   if @PrintOnly = 1
-    print @cmd
+    if len(@cmd) <= 4000
+      print @cmd
+    else 
+      SELECT CAST('<root><![CDATA[' + @cmd + ']]></root>' AS XML)
   else
     exec (@cmd)
 
-end
+end--create PS
 go
